@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Environment Variables & Secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+
+# Local Databases & Persistent Storage
+data/*.db
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# Web Build Output
+WEB/dist/
+
+# Android & Gradle Build Artifacts
+.gradle/
+build/
+*/build/
+app/build/
+*.apk
+*.aab
+*.hprof
+.idea/
+*.iml
+local.properties
+.cxx/
+captures/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Supabase CLI local state
+.supabase/

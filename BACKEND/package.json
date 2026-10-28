@@ -1,0 +1,20 @@
+{
+  "name": "majismart-backend",
+  "version": "1.0.0",
+  "description": "MajiSmart Zambia - IoT Water Monitoring and Community Reporting Shared Backend",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2"
+    ,"pg": "^8.13.1"
+  }
+}

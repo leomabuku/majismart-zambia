@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: majismart-api
+    runtime: node
+    buildCommand: npm ci --prefix BACKEND
+    startCommand: npm start --prefix BACKEND
+    healthCheckPath: /api/health
+    autoDeploy: false
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DB_MODE
+        value: supabase
+      - key: DATABASE_URL
+        sync: false
+      - key: PORT
+        value: 10000
+      - key: JWT_SECRET
+        sync: false
+      - key: IOT_API_KEY
+        sync: false
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
+      - key: SEED_CUSTOMER_PASSWORD
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: DEVICE_OFFLINE_TIMEOUT_SECONDS
+        value: 60
