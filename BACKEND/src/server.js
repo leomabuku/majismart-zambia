@@ -15,7 +15,7 @@ if (process.env.NODE_ENV === 'production') {
   }
 }
 
-import { initDatabase, db, databaseMode } from './database/db.js';
+import { initDatabase, db, databaseMode, describeDatabaseTarget, databaseUrlWarnings } from './database/db.js';
 import { realtime } from './services/realtimeService.js';
 import { DeviceMonitorService } from './services/deviceMonitorService.js';
 import { IoTController } from './controllers/iotController.js';
@@ -29,8 +29,28 @@ import { authenticateToken, optionalAuth, requireAdmin } from './middleware/auth
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Connectivity diagnostics: printed on every boot so a failed deploy explains itself
+// in the Render/Fly logs instead of exiting silently.
+const databaseTarget = describeDatabaseTarget();
+console.log(`[MajiSmart] Node ${process.version} | db_mode=${databaseMode} | target=${databaseTarget}`);
+for (const warning of databaseUrlWarnings()) {
+  console.warn(`[MajiSmart] DATABASE_URL warning: ${warning}`);
+}
+
 // Initialize Database & Seed
-await initDatabase();
+try {
+  await initDatabase();
+} catch (error) {
+  console.error('[MajiSmart] Database initialisation failed - the API cannot start.');
+  console.error(`  target : ${databaseTarget}`);
+  console.error(`  reason : ${error.message}`);
+  console.error(
+    '  check  : DATABASE_URL must be the Supabase Transaction pooler '
+    + '(aws-0-<region>.pooler.supabase.com:6543/postgres?sslmode=require), '
+    + 'the password must be URL-encoded, and the database password must match the project.'
+  );
+  process.exit(1);
+}
 
 // Start Background Device Heartbeat Monitor
 DeviceMonitorService.start();

@@ -46,6 +46,48 @@ export const pool = dbMode === 'supabase'
 pool?.on('error', (err) => {
   console.error('[Database] Idle client error:', err.message);
 });
+
+// Human-readable target for startup logs and failure handling. Never includes the
+// password, so it is safe to print in Render/Fly logs.
+export function describeDatabaseTarget() {
+  if (!pool) return `sqlite (${dbPath})`;
+  try {
+    const url = new URL(connectionString);
+    return `${url.username}@${url.hostname}:${url.port || '5432'}${url.pathname}`;
+  } catch {
+    return 'DATABASE_URL could not be parsed as a URL';
+  }
+}
+
+// Catches the mistakes that account for almost every failed first deploy.
+export function databaseUrlWarnings() {
+  if (!pool) return [];
+
+  let url;
+  try {
+    url = new URL(connectionString);
+  } catch {
+    return ['DATABASE_URL is not a valid URI. It must start with postgresql:// and contain no unencoded spaces.'];
+  }
+
+  const warnings = [];
+  if (/^db\..*\.supabase\.co$/i.test(url.hostname)) {
+    warnings.push(
+      'DATABASE_URL points at the direct Supabase host (IPv6-only). Render has no IPv6 egress - '
+      + 'use the Transaction pooler string (aws-0-<region>.pooler.supabase.com:6543).'
+    );
+  }
+  if (url.port === '5432') {
+    warnings.push('DATABASE_URL uses port 5432 (direct/session). The Transaction pooler listens on 6543.');
+  }
+  if (!url.password) {
+    warnings.push('DATABASE_URL has no password segment - did you forget to replace [YOUR-PASSWORD]?');
+  }
+  if (!/sslmode=/i.test(connectionString)) {
+    warnings.push('DATABASE_URL has no sslmode=require. Supabase requires TLS for remote connections.');
+  }
+  return warnings;
+}
 export const databaseMode = dbMode;
 
 function postgresPlaceholders(sql) {
