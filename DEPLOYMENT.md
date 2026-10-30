@@ -6,12 +6,27 @@
 
 ---
 
+## Current plan: free tier
+
+The project is currently deploying on **free tiers**: **Cloudflare Pages** (web) + **Render Free** (shared API) + **Supabase Free** (database). The step-by-step checklist, exact environment variables, verification commands, and free-tier limits live in **[DEPLOY_FREE_TIER.md](./DEPLOY_FREE_TIER.md)**.
+
+What that changes versus the analysis below:
+
+- The API host is **Render Free** (plan `free`, region `frankfurt`), not Fly.io / Starter. Same process model, but the instance **sleeps after 15 minutes idle** and takes 30–60 s to wake.
+- The clients are built for that: the dashboard falls back to 30-second polling with a visible reconnect banner (`WEB/src/services/api.js`), and the Android client uses 30 s connect / 90 s read timeouts.
+- A keep-alive workflow (`.github/workflows/keepalive.yml`) plus a free uptime monitor keeps Render warm within the 750 free instance hours/month (one service only).
+- Everything else — Supabase schema, pooler connection, migrations, RLS/grants, security work — applies exactly as written below.
+
+Upgrade to Render Starter ($7/mo) or Fly.io the moment you demo to a real utility: cold starts are the one thing free hosting cannot hide. The analysis below is the upgrade path.
+
+---
+
 ## 0. TL;DR — recommended stack
 
 | Layer | Recommendation | Why | Cost to start |
 |---|---|---|---|
 | **Web dashboard hosting** | **Cloudflare Pages** (`WEB`, Vite → `dist`) | Free tier allows commercial use, **unmetered bandwidth**, free WAF/DDoS, `_headers` + `_redirects` already work here. Vercel Hobby is **non-commercial only**. | $0 |
-| **Shared API hosting** | **Fly.io — Frankfurt (`fra`)** *or* **Render Starter — Frankfurt** | The API must be a **long-running process** (15 s device monitor + persistent SSE). Region must match the database region, not the user region — see §3. | ~$3–7/mo |
+| **Shared API hosting** | **Render Free — Frankfurt** (current) → **Fly.io `fra`** or **Render Starter** when cold starts stop being acceptable | The API must be a **long-running process** (15 s device monitor + persistent SSE). Region must match the database region, not the user region — see §3. | ~$3–7/mo |
 | **Database** | **Supabase Postgres**, project region **`eu-central-1` (Frankfurt)** | Closest available region to Zambia (Supabase has **no** African region). Use the **Supavisor pooler** for the API. | $0 → $25/mo |
 | **Realtime** | Keep **SSE** on a single API instance; move to **Supabase Realtime** before scaling out | Today's SSE hub is in-process; it cannot fan out across instances. | $0 |
 | **File/photo storage** | **Cloudflare R2** (or Supabase Storage) | Report photos are currently smuggled through a 10 MB JSON body into the DB. | $0–2/mo |

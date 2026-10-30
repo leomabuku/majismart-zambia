@@ -2,12 +2,13 @@ services:
   - type: web
     name: majismart-api
     runtime: node
-    # Frankfurt keeps the API in the same region as the Supabase project.
-    # Cross-region queries cost ~150 ms each; co-located queries cost ~1-3 ms.
+    # Free plan: spins down after 15 minutes without inbound traffic and takes
+    # 30-60s to wake. The §keep-alive workflow (.github/workflows/keepalive.yml)
+    # plus an uptime monitor keeps it warm; the web and Android clients are built
+    # to survive cold starts (polling fallback + long timeouts).
+    plan: free
+    # Frankfurt is the closest Render region to the Supabase project (eu-west-1).
     region: frankfurt
-    # Free instances spin down after 15 minutes of inactivity, which kills the SSE
-    # hub and pauses the device-offline monitor. Starter is required for production.
-    plan: starter
     buildCommand: npm ci --prefix BACKEND
     startCommand: npm start --prefix BACKEND
     healthCheckPath: /api/health
@@ -19,13 +20,17 @@ services:
         value: production
       - key: DB_MODE
         value: supabase
+      # Supavisor pooler string. Copy from Supabase -> Project Settings -> Database
+      # -> Connection string -> Transaction pooler (port 6543), and append sslmode=require.
       - key: DATABASE_URL
         sync: false
-      # Schema changes are applied by CI (`supabase db push`), not at boot.
+      # The schema is applied with `supabase db push`; the API never runs DDL at boot.
       - key: AUTO_MIGRATE
         value: 'false'
       - key: DB_POOL_MAX
         value: '5'
+      - key: DB_STATEMENT_TIMEOUT_MS
+        value: '15000'
       - key: TRUST_PROXY_HOPS
         value: '1'
       - key: PORT
@@ -38,7 +43,11 @@ services:
         sync: false
       - key: SEED_CUSTOMER_PASSWORD
         sync: false
+      # Comma-separated browser origins, e.g.
+      # https://majismart-zambia.pages.dev,https://dashboard.example.zm
       - key: CORS_ORIGINS
         sync: false
       - key: DEVICE_OFFLINE_TIMEOUT_SECONDS
         value: '60'
+      - key: SSE_HEARTBEAT_MS
+        value: '25000'

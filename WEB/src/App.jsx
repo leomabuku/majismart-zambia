@@ -21,7 +21,9 @@ function MainApp() {
   const [reports, setReports] = useState([]);
   const [selectedTankId, setSelectedTankId] = useState('TANK_001');
   const [lastTelemetry, setLastTelemetry] = useState(null);
-  const [isConnected, setIsConnected] = useState(false);
+  // 'connecting' | 'live' | 'polling' — driven by the real SSE/polling fallback.
+  const [connState, setConnState] = useState('connecting');
+  const [lastSyncAt, setLastSyncAt] = useState(null);
 
   // Load baseline data from Shared Backend
   const reloadData = async () => {
@@ -44,12 +46,31 @@ function MainApp() {
     }
   };
 
+  // Lightweight refresh used while the SSE stream is unavailable (3 requests
+  // instead of 5, so a sleeping free-tier instance is not hammered).
+  const syncLive = async () => {
+    const [sumRes, tkRes, altRes] = await Promise.all([
+      api.get('/dashboard/summary'),
+      api.get('/tanks'),
+      api.get('/alerts')
+    ]);
+    if (sumRes.success) setSummary(sumRes.summary);
+    if (tkRes.success) setTanks(tkRes.data);
+    if (altRes.success) setAlerts(altRes.data);
+    setLastSyncAt(new Date());
+  };
+
   useEffect(() => {
     reloadData();
 
     // Subscribe to Server-Sent Events (Realtime)
     const unsubscribe = api.subscribeRealtime((event, data) => {
-      setIsConnected(true);
+      if (event === 'SYNC') {
+        syncLive();
+        return;
+      }
+
+      setLastSyncAt(new Date());
 
       if (event === 'NEW_READING') {
         setLastTelemetry(data);
@@ -75,9 +96,8 @@ function MainApp() {
         api.get('/tanks').then(res => { if (res.success) setTanks(res.data); });
         api.get('/dashboard/summary').then(res => { if (res.success) setSummary(res.summary); });
       }
-    });
+    }, { onStatus: setConnState });
 
-    setIsConnected(true);
     return () => unsubscribe();
   }, []);
 
@@ -98,6 +118,7 @@ function MainApp() {
     }
   };
 
+  const isConnected = connState === 'live';
   const activeAlertsCount = alerts?.filter(a => a.status === 'ACTIVE').length || 0;
   const openReportsCount = reports?.filter(r => r.status === 'SUBMITTED' || r.status === 'IN_PROGRESS').length || 0;
 
@@ -127,6 +148,20 @@ function MainApp() {
             onReload={reloadData}
             onClose={() => setShowMobileApp(false)}
           />
+        )}
+
+        {connState !== 'live' && (
+          <div className={`conn-banner conn-${connState}`}>
+            <span className="conn-dot" />
+            <span className="conn-text">
+              {connState === 'connecting'
+                ? 'Connecting to the MajiSmart API…'
+                : 'Live stream unavailable — refreshing every 30s instead.'}
+              {lastSyncAt ? ` Last sync ${lastSyncAt.toLocaleTimeString()}.` : ''}
+              {' '}Free-tier servers may take up to a minute to wake.
+            </span>
+            <button type="button" className="conn-retry" onClick={reloadData}>Retry now</button>
+          </div>
         )}
 
         <main className="content-area">

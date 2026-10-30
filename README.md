@@ -134,13 +134,13 @@ node FIRMWARE/simulator/iot_simulator.js --mode=critical
 
 ## 🚀 Deployment
 
-The production topology is a Cloudflare Pages dashboard + a single always-on container for the shared API + Supabase Postgres. Full reasoning, cost tables, environment variables, and a step-by-step runbook live in **[DEPLOYMENT.md](./DEPLOYMENT.md)**.
+The production topology is a Cloudflare Pages dashboard + a single always-on container for the shared API + Supabase Postgres. Full reasoning, cost tables, environment variables, and a step-by-step runbook live in **[DEPLOYMENT.md](./DEPLOYMENT.md)**. The current free-tier setup (Cloudflare Pages + Render Free + Supabase Free) is a click-by-click checklist in **[DEPLOY_FREE_TIER.md](./DEPLOY_FREE_TIER.md)**.
 
 Short version:
 
-- Web (`WEB/`) → Cloudflare Pages, root directory `WEB`, output `dist`, `VITE_API_BASE_URL=https://api.<domain>/api`
-- API (`BACKEND/`) → Fly.io `fra` ([`fly.toml`](./fly.toml)) or Render Starter Frankfurt ([`render.yaml`](./render.yaml)); it needs a long-running process (device monitor + SSE), so serverless is not an option
-- Database → Supabase in `eu-central-1`, migrated with `supabase db push` (`AUTO_MIGRATE=false` in production)
+- Web (`WEB/`) → Cloudflare Pages, root directory `WEB`, output `dist`, `VITE_API_BASE_URL=https://<api-host>/api`
+- API (`BACKEND/`) → Render Free ([`render.yaml`](./render.yaml)), upgrade path [Fly.io](./fly.toml) / Render Starter; it needs a long-running process (device monitor + SSE), so serverless is not an option
+- Database → Supabase project `majismart-zambia` (`eu-west-1`), schema in `supabase/migrations`, applied with `supabase db push` (`AUTO_MIGRATE=false` in production)
 - Both clients keep pointing at the same API, so the Android app and dashboard stay in sync
 
 Node 24 is required in CI and containers (local dev uses `node:sqlite`).

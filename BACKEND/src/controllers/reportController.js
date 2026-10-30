@@ -61,7 +61,11 @@ export class ReportController {
         }
       }
 
-      query += ' ORDER BY r.created_at DESC';
+      query += ' ORDER BY r.created_at DESC LIMIT ? OFFSET ?';
+      // Bounded by default so a free-tier instance never loads the whole table.
+      const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 200, 1), 500);
+      const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+      params.push(limit, offset);
 
       const reports = await db.prepare(query).all(...params);
 

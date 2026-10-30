@@ -289,6 +289,63 @@ input, select, textarea {
   flex: 1;
 }
 
+/* Connection state banner (free-tier cold starts / SSE fallback) */
+.conn-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 24px;
+  font-size: 13px;
+  font-weight: 500;
+  border-bottom: 1px solid var(--border);
+  background: var(--status-low-bg);
+  color: #92400E;
+}
+
+.conn-banner.conn-connecting {
+  background: var(--primary-light);
+  color: var(--primary-hover);
+}
+
+.conn-dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-full);
+  background: currentColor;
+  animation: pulseDot 1.5s infinite;
+}
+
+.conn-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.conn-retry {
+  flex: 0 0 auto;
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.conn-retry:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+@media (max-width: 720px) {
+  .conn-banner {
+    flex-wrap: wrap;
+    padding: 10px 16px;
+  }
+}
+
 /* Live Telemetry Banner */
 .telemetry-ticker {
   background: #0F172A;

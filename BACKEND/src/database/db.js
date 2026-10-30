@@ -157,7 +157,14 @@ export async function initDatabase() {
       }
     }
 
-    await seedPostgresData();
+    // Seeding on every boot would run ~45 statements each time a free-tier
+    // instance wakes up. Only seed an actually empty database.
+    const seeded = await pool.query('SELECT count(*)::int AS profile_count FROM public.profiles');
+    if (seeded.rows[0].profile_count === 0) {
+      await seedPostgresData();
+    } else {
+      console.log('[DB] Supabase baseline data already present, skipping seed');
+    }
     return;
   }
   sqlite.exec(`
@@ -295,6 +302,10 @@ export async function initDatabase() {
   seedDefaultData();
 }
 
+// Seeds the Supabase/PostgreSQL database with the same baseline the SQLite
+// development database gets, so the deployed dashboard and mobile app are not
+// empty on first boot. Every statement is idempotent (ON CONFLICT DO NOTHING),
+// because this runs on every container start.
 async function seedPostgresData() {
   const adminPassword = process.env.SEED_ADMIN_PASSWORD || (process.env.NODE_ENV === 'production' ? '' : 'AdminPassword2026!');
   const customerPassword = process.env.SEED_CUSTOMER_PASSWORD || (process.env.NODE_ENV === 'production' ? '' : 'CustomerPass2026!');
@@ -307,33 +318,76 @@ async function seedPostgresData() {
     throw new Error('IOT_API_KEY is required when seeding PostgreSQL devices.');
   }
 
-  await db.transaction(async (tx) => {
-    await tx.run(`
-      INSERT INTO profiles (id, email, password_hash, full_name, role, phone_number, community, district)
-      VALUES (?, ?, ?, ?, 'admin', ?, ?, ?)
-      ON CONFLICT (email) DO NOTHING
-    `, 'usr-admin-01', 'admin@majismart.zm', hashPassword(adminPassword), 'Mulenga Banda (Administrator)', '+260971234567', 'Kabulonga', 'Lusaka');
-    await tx.run(`
-      INSERT INTO profiles (id, email, password_hash, full_name, role, phone_number, community, district)
-      VALUES (?, ?, ?, ?, 'customer', ?, ?, ?)
-      ON CONFLICT (email) DO NOTHING
-    `, 'usr-cust-01', 'mwape@community.zm', hashPassword(customerPassword), 'Mwape Tembo', '+260967890123', 'Chilenje', 'Lusaka');
+  const apiKeyHash = hashPassword(apiKey);
 
-    await tx.run(`
-      INSERT INTO monitoring_stations (id, code, name, community, district, province, latitude, longitude, status, description)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?)
-      ON CONFLICT (code) DO NOTHING
-    `, 'st-001', 'ST-LUS-001', 'Lusaka Central Water Hub', 'CBD / Cairo Road', 'Lusaka', 'Lusaka Province', -15.416667, 28.283333, 'Primary distribution reservoir');
-    await tx.run(`
-      INSERT INTO tanks (id, tank_id_code, station_id, name, total_height_cm, usable_height_cm, capacity_liters, low_threshold_percent, critical_threshold_percent, recovery_threshold_percent, current_water_depth_cm, current_water_percent, current_status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT (tank_id_code) DO NOTHING
-    `, 'tank-001', 'TANK_001', 'st-001', 'Lusaka CBD Primary Tank A', 50, 50, 15000, 25, 15, 35, 34.5, 69, 'NORMAL');
-    await tx.run(`
-      INSERT INTO monitoring_devices (id, device_id_code, tank_id, api_key_hash, firmware_version, is_active, last_seen_at, status)
-      VALUES (?, ?, ?, ?, 'v1.2.0', TRUE, NOW(), 'ONLINE')
-      ON CONFLICT (device_id_code) DO NOTHING
-    `, 'dev-001', 'ESP32_001', 'tank-001', hashPassword(apiKey));
+  await db.transaction(async (tx) => {
+    // --- Profiles -------------------------------------------------------------
+    const profiles = [
+      ['usr-admin-01', 'admin@majismart.zm', hashPassword(adminPassword), 'Mulenga Banda (Administrator)', 'admin', '+260971234567', 'Kabulonga', 'Lusaka'],
+      ['usr-cust-01', 'mwape@community.zm', hashPassword(customerPassword), 'Mwape Tembo', 'customer', '+260967890123', 'Chilenje', 'Lusaka'],
+      ['usr-cust-02', 'chanda@community.zm', hashPassword(customerPassword), 'Chanda Musonda', 'customer', '+260955432109', 'Matero', 'Lusaka']
+    ];
+    for (const p of profiles) {
+      await tx.run(`
+        INSERT INTO profiles (id, email, password_hash, full_name, role, phone_number, community, district)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (email) DO NOTHING
+      `, ...p);
+    }
+
+    // --- Monitoring stations --------------------------------------------------
+    const stations = [
+      ['st-001', 'ST-LUS-001', 'Lusaka Central Water Hub', 'CBD / Cairo Road', 'Lusaka', 'Lusaka Province', -15.416667, 28.283333, 'Primary distribution reservoir supplying central business district and hospitals'],
+      ['st-002', 'ST-CHL-002', 'Chilenje South Water Station', 'Chilenje', 'Lusaka', 'Lusaka Province', -15.4512, 28.3245, 'Community water tower serving Chilenje residential areas'],
+      ['st-003', 'ST-MAT-003', 'Matero West Reservoir', 'Matero', 'Lusaka', 'Lusaka Province', -15.385, 28.261, 'High-density community reservoir with high throughput'],
+      ['st-004', 'ST-CHEL-004', 'Chelston Depot Station', 'Chelston', 'Lusaka', 'Lusaka Province', -15.372, 28.381, 'Suburban storage tank supplying Chelston and Avondale'],
+      ['st-005', 'ST-NDL-005', 'Ndola Hilltop Station', 'Hillcrest', 'Ndola', 'Copperbelt Province', -12.969, 28.636, 'Copperbelt provincial monitoring station']
+    ];
+    for (const s of stations) {
+      await tx.run(`
+        INSERT INTO monitoring_stations (id, code, name, community, district, province, latitude, longitude, status, description)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?)
+        ON CONFLICT (code) DO NOTHING
+      `, ...s);
+    }
+
+    // --- Tanks ---------------------------------------------------------------
+    // TANK_001 matches the hardware photo exactly: 50 cm usable, 15.5 cm sensor
+    // distance, 34.5 cm water depth, 69%, NORMAL.
+    const tanks = [
+      ['tank-001', 'TANK_001', 'st-001', 'Lusaka CBD Primary Tank A', 50, 50, 15000, 25, 15, 35, 34.5, 69, 'NORMAL'],
+      ['tank-002', 'TANK_002', 'st-002', 'Chilenje Tower Tank 1', 100, 100, 25000, 25, 15, 35, 22, 22, 'LOW'],
+      ['tank-003', 'TANK_003', 'st-003', 'Matero Reservoir Tank B', 200, 200, 50000, 20, 10, 30, 170, 85, 'NORMAL'],
+      ['tank-004', 'TANK_004', 'st-004', 'Chelston Feeder Tank', 150, 150, 20000, 25, 15, 35, 12, 8, 'CRITICAL'],
+      ['tank-005', 'TANK_005', 'st-005', 'Ndola Copperbelt Tank', 180, 180, 30000, 20, 10, 30, 135, 75, 'NORMAL']
+    ];
+    for (const t of tanks) {
+      await tx.run(`
+        INSERT INTO tanks (id, tank_id_code, station_id, name, total_height_cm, usable_height_cm, capacity_liters,
+          low_threshold_percent, critical_threshold_percent, recovery_threshold_percent,
+          current_water_depth_cm, current_water_percent, current_status, last_reading_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+        ON CONFLICT (tank_id_code) DO NOTHING
+      `, ...t);
+    }
+
+    // --- Devices -------------------------------------------------------------
+    const devices = [
+      ['dev-001', 'ESP32_001', 'tank-001'],
+      ['dev-002', 'ESP32_002', 'tank-002'],
+      ['dev-003', 'ESP32_003', 'tank-003'],
+      ['dev-004', 'ESP32_004', 'tank-004'],
+      ['dev-005', 'ESP32_005', 'tank-005']
+    ];
+    for (const d of devices) {
+      await tx.run(`
+        INSERT INTO monitoring_devices (id, device_id_code, tank_id, api_key_hash, firmware_version, is_active, last_seen_at, status)
+        VALUES (?, ?, ?, ?, 'v1.2.0', TRUE, NOW(), 'ONLINE')
+        ON CONFLICT (device_id_code) DO NOTHING
+      `, d[0], d[1], d[2], apiKeyHash);
+    }
+
+    // --- Initial reading (exact hardware contract) ---------------------------
     await tx.run(`
       INSERT INTO water_level_readings (id, device_id, tank_id, distance_cm, water_depth_cm, water_level_percent, status, raw_payload)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?::jsonb)
@@ -346,6 +400,80 @@ async function seedPostgresData() {
       water_level_percent: 69,
       status: 'NORMAL'
     }));
+
+    // --- 24h of history so charts are populated ------------------------------
+    for (let i = 24; i >= 1; i--) {
+      const depth = Number((32.0 + Math.sin(i / 3) * 5.0).toFixed(2));
+      const dist = Number((50.0 - depth).toFixed(2));
+      const percent = Math.round((depth / 50.0) * 100);
+      await tx.run(`
+        INSERT INTO water_level_readings (id, device_id, tank_id, distance_cm, water_depth_cm, water_level_percent, status, raw_payload, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, 'NORMAL', ?::jsonb, NOW() - (?::int * INTERVAL '1 hour'))
+        ON CONFLICT (id) DO NOTHING
+      `, `rd-hist-${i}`, 'ESP32_001', 'TANK_001', dist, depth, percent, JSON.stringify({
+        device_id: 'ESP32_001',
+        tank_id: 'TANK_001',
+        distance_cm: dist,
+        water_depth_cm: depth,
+        water_level_percent: percent,
+        status: 'NORMAL'
+      }), i);
+    }
+
+    // --- Alerts --------------------------------------------------------------
+    const alerts = [
+      ['alt-001', 'tank-004', 'ESP32_004', 'CRITICAL_WATER', 'CRITICAL', 'Critically Low Water Level',
+        'Chelston Feeder Tank water level is at 8% (below critical threshold of 15%). Immediate supply augmentation required.'],
+      ['alt-002', 'tank-002', 'ESP32_002', 'LOW_WATER', 'WARNING', 'Low Water Level Advisory',
+        'Chilenje Tower Tank 1 water level is at 22% (below low threshold of 25%). Monitoring supply inflow.']
+    ];
+    for (const a of alerts) {
+      await tx.run(`
+        INSERT INTO water_alerts (id, tank_id, device_id, alert_type, severity, title, message, status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE', NOW() - INTERVAL '2 hours')
+        ON CONFLICT (id) DO NOTHING
+      `, ...a);
+    }
+
+    // --- Community reports ---------------------------------------------------
+    const reports = [
+      ['rep-001', 'usr-cust-01', 'Mwape Tembo', '+260967890123', 'WATER_SHORTAGE',
+        'Low pressure & water cut in Section 4',
+        'Water taps have had zero pressure since yesterday morning. Over 40 households affected in Chilenje South.',
+        'Chilenje South, near Market 4', -15.452, 28.326, 'st-002', 'IN_PROGRESS',
+        'Field technician dispatched to inspect pump station booster valve.'],
+      ['rep-002', 'usr-cust-02', 'Chanda Musonda', '+260955432109', 'PIPE_LEAKAGE',
+        'Clean water gushing from distribution pipe',
+        'Substantial pipe leak on Commonwealth Avenue near Matero clinic. Clean treated water is flooding the roadside.',
+        'Matero, Commonwealth Ave', -15.3875, 28.2635, 'st-003', 'SUBMITTED', null],
+      ['rep-003', 'usr-cust-01', 'Mwape Tembo', '+260967890123', 'WATER_QUALITY',
+        'Brownish discolouration in tap water',
+        'Water coming out of tap has sediment and slight brown tint after morning supply resumption.',
+        'Chelston Green, Plot 144', -15.3745, 28.3835, 'st-004', 'ACKNOWLEDGED',
+        'Flushing of Chelston sub-mains scheduled for 16:00 today.']
+    ];
+    for (const r of reports) {
+      await tx.run(`
+        INSERT INTO community_reports (id, reporter_id, reporter_name, reporter_phone, category, title, description,
+          location_name, latitude, longitude, station_id, status, admin_notes, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW() - INTERVAL '1 day')
+        ON CONFLICT (id) DO NOTHING
+      `, ...r);
+    }
+
+    // --- Report status history ----------------------------------------------
+    const history = [
+      ['hist-001', 'rep-001', 'SUBMITTED', 'ACKNOWLEDGED', 'Report reviewed by dispatch team.'],
+      ['hist-002', 'rep-001', 'ACKNOWLEDGED', 'IN_PROGRESS', 'Field team assigned to inspect valve.'],
+      ['hist-003', 'rep-003', 'SUBMITTED', 'ACKNOWLEDGED', 'Water quality team notified for sampling.']
+    ];
+    for (const h of history) {
+      await tx.run(`
+        INSERT INTO report_status_history (id, report_id, previous_status, new_status, changed_by, notes, created_at)
+        VALUES (?, ?, ?, ?, 'usr-admin-01', ?, NOW() - INTERVAL '18 hours')
+        ON CONFLICT (id) DO NOTHING
+      `, ...h);
+    }
   });
 }
 

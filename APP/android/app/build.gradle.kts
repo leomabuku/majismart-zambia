@@ -14,10 +14,14 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
+        // Shared backend. Override per build, e.g.:
+        //   ./gradlew assembleDebug -PapiBaseUrl=http://10.0.2.2:5000/
+        //   ./gradlew assembleRelease -PapiBaseUrl=https://majismart-api.onrender.com/
+        // Defaults to the deployed Render service; falls back to the emulator loopback.
         buildConfigField(
             "String",
             "API_BASE_URL",
-            "\"${project.findProperty("apiBaseUrl") ?: "http://10.0.2.2:5000/"}\""
+            "\"${project.findProperty("apiBaseUrl") ?: "https://majismart-api.onrender.com/"}\""
         )
         manifestPlaceholders["MAPS_API_KEY"] = project.findProperty("mapsApiKey") ?: "YOUR_GOOGLE_MAPS_API_KEY"
 

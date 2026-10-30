@@ -23,7 +23,10 @@ export class AlertController {
         params.push(severity);
       }
 
-      sql += ' ORDER BY a.created_at DESC';
+      sql += ' ORDER BY a.created_at DESC LIMIT ? OFFSET ?';
+      const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 200, 1), 500);
+      const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+      params.push(limit, offset);
       const alerts = await db.prepare(sql).all(...params);
 
       return res.json({ success: true, count: alerts.length, data: alerts });
