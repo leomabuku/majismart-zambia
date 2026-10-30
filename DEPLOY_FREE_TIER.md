@@ -44,7 +44,7 @@ openssl rand -hex 32             # IOT_API_KEY
 
 | Variable | Value |
 |---|---|
-| `DATABASE_URL` | Supabase → **Project Settings → Database → Connection string → Transaction pooler**, then append `?sslmode=require`. It looks like:<br>`postgresql://postgres.rdrwxahuxbgtugvacjpp:<DB_PASSWORD>@aws-0-eu-west-1.pooler.supabase.com:6543/postgres?sslmode=require`<br>Use the **pooler** (port 6543), not `db.<ref>.supabase.co` — direct connections are IPv6-only and Render has no IPv6 egress. |
+| `DATABASE_URL` | Supabase → **Project Settings → Database → Connection string → Transaction pooler**, then append `?sslmode=require` (optional — the API enforces TLS either way). It looks like:<br>`postgresql://postgres.rdrwxahuxbgtugvacjpp:<DB_PASSWORD>@aws-0-eu-west-1.pooler.supabase.com:6543/postgres?sslmode=require`<br>Use the **pooler** (port 6543), not `db.<ref>.supabase.co` — direct connections are IPv6-only and Render has no IPv6 egress. |
 | `JWT_SECRET` | output of `openssl rand -base64 48` |
 | `IOT_API_KEY` | output of `openssl rand -hex 32` — this is the key the ESP32/simulator sends as `x-api-key` |
 | `SEED_ADMIN_PASSWORD` | a strong password you will actually use to log in as admin |
@@ -217,6 +217,7 @@ In the browser: dashboard loads, header says **Realtime Connected**, the new rea
 | API boots then exits: `Missing required production environment variables` | Empty `JWT_SECRET`, `IOT_API_KEY`, `CORS_ORIGINS`, or `SEED_*` | Fill all `sync: false` vars in Render. |
 | API boots then exits: `SEED_ADMIN_PASSWORD and SEED_CUSTOMER_PASSWORD are required` | Same as above, or `NODE_ENV=production` with blank seed passwords | Set both. |
 | `/api/health` shows `db_mode: "sqlite"` | `DB_MODE` missing | Set `DB_MODE=supabase` and redeploy. |
+| `self-signed certificate in certificate chain` | Older builds let `sslmode=require` in the URI override the app's TLS setting, forcing full chain verification that Supabase's pooler cannot satisfy | Fixed in the API (SSL params are stripped from the URI and TLS is configured explicitly). Redeploy the latest commit. |
 | `getaddrinfo EAI_AGAIN` / timeout connecting to the database | Using the direct `db.<ref>.supabase.co` host (IPv6) or a wrong password | Use the pooler on port 6543 and re-copy the password. |
 | `permission denied for table ...` from the API | You connected with the anon key instead of the postgres pooler URL | `DATABASE_URL` must be the Supabase **postgres** pooler connection string. |
 | Browser console: CORS blocked | `CORS_ORIGINS` missing the exact Pages origin (scheme + host, no trailing slash) | Update the Render env var and redeploy. |

@@ -4,7 +4,13 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
-import { Pool } from 'pg';
+import { Pool, types } from 'pg';
+
+// Postgres returns NUMERIC and BIGINT as strings to avoid precision loss, while SQLite
+// returns numbers. Controllers and the UI were written against SQLite values, so parse
+// them here instead of sprinkling Number() conversions everywhere.
+types.setTypeParser(1700, (value) => (value === null ? null : Number(value))); // NUMERIC
+types.setTypeParser(20, (value) => (value === null ? null : Number(value))); // INT8 / COUNT(*)
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,15 +35,41 @@ const connectionString = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL
 if (dbMode === 'supabase' && !connectionString) {
   throw new Error('DATABASE_URL (or SUPABASE_DB_URL) is required when DB_MODE=supabase');
 }
+// pg-connection-string maps `sslmode=require` to verify-full semantics, and values parsed
+// from the connection string override an explicit `ssl` option. Supabase's Supavisor
+// pooler presents a chain that Node does not trust ("self-signed certificate in
+// certificate chain"), so TLS was failing even though the API asked for
+// rejectUnauthorized: false. Strip the ssl parameters from the URI and decide TLS
+// ourselves: encrypted always in production, full verification only when explicitly
+// requested with sslmode=verify-full / verify-ca.
+function splitSslParams(rawConnectionString) {
+  const queryIndex = rawConnectionString.indexOf('?');
+  if (queryIndex === -1) return { connectionString: rawConnectionString, sslmode: null };
+
+  const base = rawConnectionString.slice(0, queryIndex);
+  const params = new URLSearchParams(rawConnectionString.slice(queryIndex + 1));
+  const sslmode = (params.get('sslmode') || '').toLowerCase() || null;
+  params.delete('sslmode');
+  params.delete('uselibpqcompat');
+  const rest = params.toString();
+
+  return { connectionString: rest ? `${base}?${rest}` : base, sslmode };
+}
+
+const parsedConnection = connectionString ? splitSslParams(connectionString) : null;
+const sslmode = parsedConnection?.sslmode || null;
+const verifyCertificate = sslmode === 'verify-full' || sslmode === 'verify-ca';
+const useTls = Boolean(parsedConnection) && (process.env.NODE_ENV === 'production' || Boolean(sslmode));
+
 export const pool = dbMode === 'supabase'
   ? new Pool({
-      connectionString,
+      connectionString: parsedConnection.connectionString,
       max: Number(process.env.DB_POOL_MAX || 10),
       idleTimeoutMillis: Number(process.env.DB_IDLE_TIMEOUT_MS || 30000),
       connectionTimeoutMillis: Number(process.env.DB_CONNECT_TIMEOUT_MS || 10000),
       statement_timeout: Number(process.env.DB_STATEMENT_TIMEOUT_MS || 15000),
       application_name: 'majismart-api',
-      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined
+      ssl: useTls ? { rejectUnauthorized: verifyCertificate } : undefined
     })
   : null;
 
@@ -82,9 +114,6 @@ export function databaseUrlWarnings() {
   }
   if (!url.password) {
     warnings.push('DATABASE_URL has no password segment - did you forget to replace [YOUR-PASSWORD]?');
-  }
-  if (!/sslmode=/i.test(connectionString)) {
-    warnings.push('DATABASE_URL has no sslmode=require. Supabase requires TLS for remote connections.');
   }
   return warnings;
 }
