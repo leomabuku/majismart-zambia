@@ -1,4 +1,12 @@
 -- ==============================================================================
+-- DEPRECATED COPY - do not edit.
+-- The canonical schema is supabase/migrations/20261024000001_initial_schema.sql
+-- (applied by `supabase db push` and read by BACKEND/src/database/db.js).
+-- This file has drifted from the canonical copy and is kept only for reference.
+-- See DEPLOYMENT.md section 4.2.
+-- ==============================================================================
+
+-- ==============================================================================
 -- MAJISMART ZAMBIA: PostgreSQL & Supabase Database Migration
 -- Version: 001_initial_schema.sql
 -- Description: Core schema for IoT water monitoring, alerting & community reports

@@ -38,6 +38,12 @@ DeviceMonitorService.start();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Behind Fly.io / Render / Cloudflare the client IP arrives via X-Forwarded-For.
+// Without this, rate limiting and request logging see the proxy IP for every user.
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1));
+}
+
 const configuredOrigins = (process.env.CORS_ORIGINS || '*')
   .split(',')
   .map((origin) => origin.trim())
@@ -56,6 +62,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Health Check
 app.get('/api/health', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   try {
     await db.healthCheck();
     res.json({
@@ -73,10 +80,23 @@ app.get('/api/health', async (req, res) => {
 
 // Realtime SSE Stream Endpoint
 app.get('/api/realtime/stream', (req, res) => {
+  const requestOrigin = req.headers.origin;
+  const originAllowed = configuredOrigins.includes('*')
+    || (requestOrigin && configuredOrigins.includes(requestOrigin));
+
+  if (requestOrigin && !originAllowed) {
+    return res.status(403).json({ success: false, error: 'Origin not allowed' });
+  }
+
   res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // Disable nginx/Cloudflare buffering so events are flushed immediately.
+  res.setHeader('X-Accel-Buffering', 'no');
+  if (requestOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', requestOrigin);
+    res.setHeader('Vary', 'Origin');
+  }
   res.flushHeaders?.();
 
   realtime.addClient(res);
@@ -173,6 +193,8 @@ const server = app.listen(PORT, () => {
 
 export function shutdownServer() {
   DeviceMonitorService.stop();
+  // SSE streams never finish on their own; close them so server.close() can resolve.
+  realtime.closeAll();
   return new Promise((resolve, reject) => {
     server.close(async (err) => {
       if (err) reject(err);
@@ -186,6 +208,32 @@ export function shutdownServer() {
       }
     });
   });
+}
+
+// Fly.io / Render send SIGTERM before replacing an instance. Without a handler the
+// process is killed mid-request and clients see dropped connections on every deploy.
+// Only wire this when the file is the process entry point (tests import it directly).
+const isEntryPoint = process.argv[1] && path.resolve(process.argv[1]) === __filename;
+if (isEntryPoint) {
+  for (const signal of ['SIGTERM', 'SIGINT']) {
+    process.once(signal, async () => {
+      console.log(`[MajiSmart] ${signal} received, shutting down gracefully...`);
+      const forceExit = setTimeout(() => {
+        console.error('[MajiSmart] Graceful shutdown timed out, forcing exit');
+        process.exit(1);
+      }, Number(process.env.SHUTDOWN_TIMEOUT_MS || 15000));
+      forceExit.unref();
+      try {
+        await shutdownServer();
+        clearTimeout(forceExit);
+        console.log('[MajiSmart] Shutdown complete');
+        process.exit(0);
+      } catch (error) {
+        console.error('[MajiSmart] Shutdown error:', error);
+        process.exit(1);
+      }
+    });
+  }
 }
 
 export { server };

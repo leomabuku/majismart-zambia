@@ -43,7 +43,7 @@ flowchart TD
 
     subgraph Backend_Cloud ["Shared Backend & Database Layer"]
         API["Express & Node v24 Core API (:5000)"]
-        DB["PostgreSQL / Supabase Schema (001_initial_schema.sql)"]
+        DB["PostgreSQL / Supabase (supabase/migrations)"]
         SSE["Server-Sent Events Realtime Hub (/api/realtime/stream)"]
         Alerts["Threshold Transition & Alert Engine"]
         Monitor["Heartbeat & Offline Detector (60s timeout)"]
@@ -74,7 +74,7 @@ flowchart TD
 
 ## 3. Database Schema Overview
 
-The database is defined in `BACKEND/database/migrations/001_initial_schema.sql` with Row Level Security (RLS) policies:
+The database is defined in `supabase/migrations/20261024000001_initial_schema.sql` (the canonical copy applied by `supabase db push`) with Row Level Security (RLS) policies. Note that today the API connects as the `postgres` role through `pg`, which bypasses RLS — see `DEPLOYMENT.md` §4.3 before relying on these policies:
 
 1. `profiles`: User identity and role (`admin`, `customer`, `technician`).
 2. `monitoring_stations`: Geographic hubs (e.g. Lusaka Central, Chilenje, Matero, Chelston, Ndola).

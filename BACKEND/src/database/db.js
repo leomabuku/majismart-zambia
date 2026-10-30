@@ -30,8 +30,22 @@ if (dbMode === 'supabase' && !connectionString) {
   throw new Error('DATABASE_URL (or SUPABASE_DB_URL) is required when DB_MODE=supabase');
 }
 export const pool = dbMode === 'supabase'
-  ? new Pool({ connectionString, max: Number(process.env.DB_POOL_MAX || 10), ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined })
+  ? new Pool({
+      connectionString,
+      max: Number(process.env.DB_POOL_MAX || 10),
+      idleTimeoutMillis: Number(process.env.DB_IDLE_TIMEOUT_MS || 30000),
+      connectionTimeoutMillis: Number(process.env.DB_CONNECT_TIMEOUT_MS || 10000),
+      statement_timeout: Number(process.env.DB_STATEMENT_TIMEOUT_MS || 15000),
+      application_name: 'majismart-api',
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined
+    })
   : null;
+
+// Supabase's Supavisor pooler drops idle backends after a few minutes. Without this
+// listener an idle-client error is an unhandled 'error' event and crashes the API.
+pool?.on('error', (err) => {
+  console.error('[Database] Idle client error:', err.message);
+});
 export const databaseMode = dbMode;
 
 function postgresPlaceholders(sql) {
@@ -114,15 +128,35 @@ export async function initDatabase() {
     `);
 
     if (schemaState.rows[0].table_count < 9) {
-      await pool.query('BEGIN');
-      try {
-        await pool.query(fs.readFileSync(migrationPath, 'utf8'));
-        await pool.query('COMMIT');
-      } catch (error) {
-        await pool.query('ROLLBACK');
-        throw error;
+      const autoMigrate = process.env.AUTO_MIGRATE === 'true'
+        || process.env.NODE_ENV !== 'production';
+
+      if (!autoMigrate) {
+        // Production guardrail: schema changes belong in a reviewed migration step
+        // (`supabase db push` in CI), not in application boot. Two instances booting at
+        // once would race on DDL, and the runtime role should not own the schema.
+        console.error(
+          '[MajiSmart] Database schema is incomplete and AUTO_MIGRATE is disabled. '
+          + 'Run `supabase db push` against this project before starting the API.'
+        );
+      } else {
+        if (!fs.existsSync(migrationPath)) {
+          throw new Error(
+            `Database migration file not found at ${migrationPath}. `
+            + 'Copy the supabase/migrations directory into the image or run migrations separately.'
+          );
+        }
+        await pool.query('BEGIN');
+        try {
+          await pool.query(fs.readFileSync(migrationPath, 'utf8'));
+          await pool.query('COMMIT');
+        } catch (error) {
+          await pool.query('ROLLBACK');
+          throw error;
+        }
       }
     }
+
     await seedPostgresData();
     return;
   }

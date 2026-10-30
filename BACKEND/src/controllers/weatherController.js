@@ -18,7 +18,7 @@ export class WeatherController {
       const lon = req.query.lon || 28.2833;
       const city = req.query.city || 'Lusaka';
 
-      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,precipitation,rain,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=Africa%2FMaputo`;
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,precipitation,rain,weather_code,wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&timezone=Africa%2FLusaka`;
 
       const response = await fetch(url, { signal: AbortSignal.timeout(4000) });
       
