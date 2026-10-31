@@ -877,6 +877,8 @@ input, select, textarea {
 }
 
 .auth-brand-copy h1 {
+  /* The global heading rule is dark navy; this sits on the navy gradient panel. */
+  color: #FFFFFF;
   font-size: 34px;
   line-height: 1.2;
   letter-spacing: -0.6px;
