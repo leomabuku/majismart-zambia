@@ -140,6 +140,10 @@ export const api = {
     return this.request(endpoint, { method: 'PUT', body: data });
   },
 
+  patch(endpoint, data) {
+    return this.request(endpoint, { method: 'PATCH', body: data });
+  },
+
   health() {
     return this.request('/health');
   },

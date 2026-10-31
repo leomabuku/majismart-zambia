@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import ReportLocationCard from '../components/ReportLocationCard';
 import { 
   Plus, 
   Filter, 
@@ -28,9 +29,47 @@ export default function CommunityReports({ reports, onReload }) {
     title: '',
     description: '',
     location_name: '',
-    latitude: -15.4167,
-    longitude: 28.2833
+    latitude: null,
+    longitude: null,
+    location_accuracy_m: null,
+    location_source: 'MANUAL'
   });
+  const [locating, setLocating] = useState(false);
+  const [locationNote, setLocationNote] = useState('');
+
+  const useMyLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationNote('This browser cannot share a location.');
+      return;
+    }
+    setLocating(true);
+    setLocationNote('');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setNewReport((prev) => ({
+          ...prev,
+          latitude: Number(pos.coords.latitude.toFixed(6)),
+          longitude: Number(pos.coords.longitude.toFixed(6)),
+          location_accuracy_m: pos.coords.accuracy ? Math.round(pos.coords.accuracy) : null,
+          location_source: pos.coords.accuracy && pos.coords.accuracy <= 60 ? 'GPS' : 'NETWORK'
+        }));
+        setLocationNote(
+          `Pinned at ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}` +
+          (pos.coords.accuracy ? ` (±${Math.round(pos.coords.accuracy)} m)` : '')
+        );
+        setLocating(false);
+      },
+      (err) => {
+        setLocating(false);
+        setLocationNote(
+          err.code === err.PERMISSION_DENIED
+            ? 'Location permission denied. Type the street name instead.'
+            : 'Could not get a GPS fix. Type the street name instead.'
+        );
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
+    );
+  };
 
   const filtered = reports.filter(r => {
     if (filterCategory !== 'ALL' && r.category !== filterCategory) return false;
@@ -74,9 +113,12 @@ export default function CommunityReports({ reports, onReload }) {
           title: '',
           description: '',
           location_name: '',
-          latitude: -15.4167,
-          longitude: 28.2833
+          latitude: null,
+          longitude: null,
+          location_accuracy_m: null,
+          location_source: 'MANUAL'
         });
+        setLocationNote('');
         onReload();
       }
     } catch (err) {
@@ -239,14 +281,24 @@ export default function CommunityReports({ reports, onReload }) {
               <button onClick={() => setSelectedReport(null)} style={{ color: '#94A3B8', fontSize: '20px' }}>&times;</button>
             </div>
 
-            <div style={{ background: '#F8FAFC', padding: '14px', borderRadius: '8px', marginBottom: '18px', fontSize: '13px' }}>
+            <div style={{ background: '#F8FAFC', padding: '14px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px' }}>
               <p><strong>Description:</strong> {selectedReport.description}</p>
               <p style={{ marginTop: '6px' }}><strong>Location:</strong> {selectedReport.location_name}</p>
-              <p style={{ marginTop: '6px' }}><strong>Reporter:</strong> {selectedReport.reporter_name} ({selectedReport.reporter_phone || 'N/A'})</p>
+              <p style={{ marginTop: '6px' }}>
+                <strong>Reporter:</strong>{' '}
+                {selectedReport.reporter_name_profile || selectedReport.reporter_name || 'Resident'}
+                {' '}({selectedReport.reporter_phone_profile || selectedReport.reporter_phone || 'no phone on file'})
+              </p>
+              <p style={{ marginTop: '6px' }}>
+                <strong>Submitted:</strong> {new Date(selectedReport.created_at).toLocaleString()}
+              </p>
               {selectedReport.admin_notes && (
                 <p style={{ marginTop: '6px', color: '#0284C7' }}><strong>Current Admin Notes:</strong> {selectedReport.admin_notes}</p>
               )}
             </div>
+
+            {/* GPS fix, directions and photo evidence */}
+            <ReportLocationCard report={selectedReport} />
 
             {/* Lifecycle History Audit Timeline */}
             <h4 style={{ fontSize: '14px', marginBottom: '10px', color: '#03045E' }}>Status Progression History</h4>
@@ -363,6 +415,27 @@ export default function CommunityReports({ reports, onReload }) {
                   value={newReport.location_name}
                   onChange={e => setNewReport({ ...newReport, location_name: e.target.value })}
                 />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Pin the exact spot</label>
+                <div className="geo-capture-row">
+                  <button
+                    type="button"
+                    className="btn-secondary geo-capture-btn"
+                    onClick={useMyLocation}
+                    disabled={locating}
+                  >
+                    <MapPin size={14} /> {locating ? 'Getting GPS fix…' : 'Use my current location'}
+                  </button>
+                  {newReport.latitude != null && (
+                    <span className="geo-capture-chip">
+                      {newReport.latitude.toFixed(5)}, {newReport.longitude.toFixed(5)}
+                      {newReport.location_accuracy_m ? ` ±${newReport.location_accuracy_m} m` : ''}
+                    </span>
+                  )}
+                </div>
+                {locationNote && <p className="geo-capture-note">{locationNote}</p>}
               </div>
 
               <div className="form-group">

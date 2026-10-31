@@ -311,3 +311,58 @@ Both the API and the Pages project need a **new deploy** after adding the variab
 | `Google sign-in is not configured on this server` (503) | `GOOGLE_CLIENT_ID` is empty on Render — the endpoint fails closed on purpose |
 | Android: `Google did not return an ID token` | `googleWebClientId` missing at build time, or the SHA-1/package pair is not registered |
 | Android: `ApiException` code 10 | `DEVELOPER_ERROR` — package name or SHA-1 mismatch in the Android OAuth client |
+
+---
+
+## 10. Roles, report geolocation and leak photos
+
+### 10.1 Who can do what
+
+| Capability | Customer | Technician | Administrator |
+|---|---|---|---|
+| See live tank levels, alerts, incident map | yes | yes | yes |
+| Submit a community report with GPS pin + photo | yes | yes | yes |
+| Follow their own rejected reports | yes | yes | yes |
+| Change report lifecycle status | no | no | yes |
+| Acknowledge / resolve water alerts | no | no | yes |
+| ESP32 simulator (inject readings) | no | no | yes |
+| Team & Roles page, change anyone's role | no | no | yes |
+
+The sidebar hides administrator-only entries, and the API enforces the same rules with `requireAdmin` — hiding a button is never the security boundary.
+
+### 10.2 Changing someone's role
+
+**Dashboard → Team & Roles** (administrator only) → pick a role in the row:
+
+- **Customer** — reports leaks, follows their own submissions.
+- **Technician** — same as customer today, reserved for dispatch workflows.
+- **Administrator** — full control.
+
+Guardrails: a stray `role` value is rejected (400), an unknown user is 404, and the last remaining administrator cannot be demoted (409). Demoting yourself asks for confirmation and then reloads the dashboard.
+
+API: `GET /api/users`, `PATCH /api/users/:id/role` — both admin-only.
+
+### 10.3 Where a report happened
+
+`POST /api/reports` accepts:
+
+| Field | Notes |
+|---|---|
+| `latitude`, `longitude` | decimal degrees. Both null → no pin, stored as `MANUAL` |
+| `location_accuracy_m` | GPS accuracy in metres (from the phone) |
+| `location_source` | `GPS` / `NETWORK` / `MANUAL` |
+| `photo_base64`, `photo_mime` | JPEG/PNG/WebP up to 2 MB; stored as a data URL in `image_url` |
+
+The dashboard report dialog shows a single-pin mini map, the raw coordinates, the accuracy, the photo, and a **Directions** button that opens Google Maps turn-by-turn navigation to the pin. The incident map popups carry the same photo and directions link.
+
+> Storage note: pilot photos are inlined in Postgres. When photo volume grows, move `image_url` to Supabase Storage and keep the same column — the API and clients already treat `image_url` as "a URL that can be rendered".
+
+### 10.4 Android capture
+
+In the app's **Report Issue** tab:
+
+1. **Use my location** → requests the runtime location permission, then takes a high-accuracy fused fix and shows the accuracy in metres.
+2. **Take photo of leak** → opens the camera, returns a bitmap, downscales to 1280 px and JPEG-compresses to ~60% before upload.
+3. Submit → the report reaches `POST /api/reports` with the pin, the accuracy and the photo in one request.
+
+Category keys match the API enum exactly (`BURST_PIPE`, `PIPE_LEAKAGE`, `WATER_SHORTAGE`, `TANK_MALFUNCTION`, `WATER_QUALITY`, `OTHER`) — anything else is rejected with 400.

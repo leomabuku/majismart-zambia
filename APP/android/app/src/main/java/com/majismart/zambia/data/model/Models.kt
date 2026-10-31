@@ -55,7 +55,13 @@ data class CreateReportRequest(
     @SerializedName("description") val description: String,
     @SerializedName("location_name") val locationName: String,
     @SerializedName("latitude") val latitude: Double? = null,
-    @SerializedName("longitude") val longitude: Double? = null
+    @SerializedName("longitude") val longitude: Double? = null,
+    // How good the GPS fix was, and how it was obtained (GPS | NETWORK | MANUAL).
+    @SerializedName("location_accuracy_m") val locationAccuracyM: Double? = null,
+    @SerializedName("location_source") val locationSource: String? = null,
+    // Leak photo evidence, base64 JPEG captured in the app.
+    @SerializedName("photo_base64") val photoBase64: String? = null,
+    @SerializedName("photo_mime") val photoMime: String? = null
 )
 
 data class ApiResponse<T>(

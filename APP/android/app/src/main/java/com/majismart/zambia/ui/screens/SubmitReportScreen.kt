@@ -1,6 +1,13 @@
 package com.majismart.zambia.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.util.Base64
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -13,11 +20,17 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 import com.google.android.gms.maps.model.LatLng
 import com.majismart.zambia.data.model.CreateReportRequest
 import com.majismart.zambia.data.remote.MajiSmartApiService
@@ -26,6 +39,8 @@ import com.majismart.zambia.notifications.NotificationType
 import com.majismart.zambia.ui.components.InteractiveLocationPicker
 import com.majismart.zambia.ui.theme.*
 import kotlinx.coroutines.launch
+import java.io.ByteArrayOutputStream
+import java.util.Locale
 
 @Composable
 fun SubmitReportScreen(
@@ -45,12 +60,111 @@ fun SubmitReportScreen(
     var isSubmitting by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
+    // Leak evidence captured on the spot.
+    var photoBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var gpsAccuracy by remember { mutableStateOf<Double?>(null) }
+    var locationSource by remember { mutableStateOf("MANUAL") }
+    var locating by remember { mutableStateOf(false) }
+
+    // These keys must match the API's enum exactly (POST /api/reports rejects
+    // anything else): BURST_PIPE, PIPE_LEAKAGE, WATER_SHORTAGE, TANK_MALFUNCTION,
+    // WATER_QUALITY, OTHER.
     val categories = listOf(
-        Triple("BURST_PIPE", "Burst Pipe / Leak", Icons.Default.InvertColors),
-        Triple("WATER_SHORTAGE", "Water Shortage", Icons.Default.WaterDrop),
-        Triple("LOW_PRESSURE", "Low Pressure", Icons.Default.Speed),
-        Triple("CONTAMINATION", "Quality Issue", Icons.Default.Warning)
+        Triple("BURST_PIPE", "Burst Pipe", Icons.Default.InvertColors),
+        Triple("PIPE_LEAKAGE", "Pipe Leak", Icons.Default.WaterDrop),
+        Triple("WATER_SHORTAGE", "No Water", Icons.Default.WaterDamage),
+        Triple("WATER_QUALITY", "Water Quality", Icons.Default.Science)
     )
+
+    val locationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
+
+    fun useCurrentLocation() {
+        locating = true
+        errorMessage = null
+        try {
+            locationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
+                .addOnSuccessListener { loc ->
+                    locating = false
+                    if (loc != null) {
+                        val latLng = LatLng(loc.latitude, loc.longitude)
+                        selectedLatLng = latLng
+                        gpsAccuracy = if (loc.hasAccuracy()) loc.accuracy.toDouble() else null
+                        locationSource = if (loc.hasAccuracy() && loc.accuracy <= 60f) "GPS" else "NETWORK"
+                        locationName = String.format(
+                            Locale.US, "%.5f, %.5f", loc.latitude, loc.longitude
+                        )
+                    } else {
+                        errorMessage = "Could not get a GPS fix. Move outside and try again."
+                    }
+                }
+                .addOnFailureListener {
+                    locating = false
+                    errorMessage = "Location unavailable: ${it.message}"
+                }
+        } catch (e: SecurityException) {
+            locating = false
+            errorMessage = "Location permission is required to pin the leak."
+        }
+    }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        val granted = grants[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            grants[Manifest.permission.ACCESS_COARSE_LOCATION] == true ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+        if (granted) {
+            useCurrentLocation()
+        } else {
+            errorMessage = "Location permission denied. You can still describe where the leak is."
+        }
+    }
+
+    // TakePicturePreview needs no FileProvider and no storage permission: the
+    // camera app hands back a small bitmap that we compress before upload.
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview()
+    ) { bitmap ->
+        if (bitmap != null) {
+            photoBitmap = bitmap
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            cameraLauncher.launch(null)
+        } else {
+            errorMessage = "Camera permission denied. A photo helps the crew find the leak."
+        }
+    }
+
+    fun openCamera() {
+        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+            PackageManager.PERMISSION_GRANTED
+        if (granted) cameraLauncher.launch(null) else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+    }
+
+    /** Downscale + JPEG-compress so a phone photo stays well under the 2 MB API cap. */
+    fun encodePhoto(bitmap: Bitmap): String {
+        val maxSide = 1280
+        val scale = minOf(1f, maxSide.toFloat() / maxOf(bitmap.width, bitmap.height))
+        val scaled = if (scale < 1f) {
+            Bitmap.createScaledBitmap(
+                bitmap,
+                (bitmap.width * scale).toInt().coerceAtLeast(1),
+                (bitmap.height * scale).toInt().coerceAtLeast(1),
+                true
+            )
+        } else {
+            bitmap
+        }
+        val out = ByteArrayOutputStream()
+        scaled.compress(Bitmap.CompressFormat.JPEG, 60, out)
+        return Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+    }
 
     Column(
         modifier = Modifier
@@ -162,6 +276,146 @@ fun SubmitReportScreen(
             }
         )
 
+        // GPS fix card: pin the leak at the reporter's real position
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            shape = RoundedCornerShape(16.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(color = MajiOceanBlue.copy(alpha = 0.12f), shape = CircleShape, modifier = Modifier.size(40.dp)) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.MyLocation, contentDescription = null, tint = MajiOceanBlue, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Share my current location", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MajiNavy)
+                        Text(
+                            "Captures the exact GPS pin so dispatch crews can navigate straight to the leak.",
+                            fontSize = 11.sp,
+                            color = Color(0xFF64748B)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Button(
+                        onClick = {
+                            locationPermissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                )
+                            )
+                        },
+                        enabled = !locating,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MajiOceanBlue)
+                    ) {
+                        if (locating) {
+                            CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                        } else {
+                            Icon(Icons.Default.MyLocation, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                        }
+                        Text(if (locating) "Locating…" else "Use my location", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    gpsAccuracy?.let { acc ->
+                        Surface(color = MajiGreenLight, shape = RoundedCornerShape(999.dp)) {
+                            Text(
+                                text = String.format(Locale.US, "±%.0f m accuracy", acc),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF047857),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                            )
+                        }
+                    }
+                }
+
+                selectedLatLng?.let { pin ->
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = String.format(Locale.US, "Pin: %.5f, %.5f (%s)", pin.latitude, pin.longitude, locationSource),
+                        fontSize = 11.sp,
+                        color = Color(0xFF64748B)
+                    )
+                }
+            }
+        }
+
+        // Leak photo evidence
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            shape = RoundedCornerShape(16.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(color = MajiRed.copy(alpha = 0.12f), shape = CircleShape, modifier = Modifier.size(40.dp)) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.CameraAlt, contentDescription = null, tint = MajiRed, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Photo of the leak", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MajiNavy)
+                        Text(
+                            "A picture is attached to the report with its GPS pin, so the crew knows exactly what to expect.",
+                            fontSize = 11.sp,
+                            color = Color(0xFF64748B)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                val shot = photoBitmap
+                if (shot != null) {
+                    Image(
+                        bitmap = shot.asImageBitmap(),
+                        contentDescription = "Leak photo preview",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(160.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { openCamera() }, shape = RoundedCornerShape(10.dp)) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Retake", fontSize = 12.sp)
+                        }
+                        TextButton(onClick = { photoBitmap = null }) {
+                            Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp), tint = MajiRed)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Remove", fontSize = 12.sp, color = MajiRed)
+                        }
+                    }
+                } else {
+                    Button(
+                        onClick = { openCamera() },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MajiRed)
+                    ) {
+                        Icon(Icons.Default.PhotoCamera, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Take photo of leak", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
         // Urgency Meter
         Text("Urgency Level", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MajiNavy)
         Row(
@@ -225,7 +479,11 @@ fun SubmitReportScreen(
                             description = description,
                             locationName = locationName,
                             latitude = selectedLatLng?.latitude,
-                            longitude = selectedLatLng?.longitude
+                            longitude = selectedLatLng?.longitude,
+                            locationAccuracyM = gpsAccuracy,
+                            locationSource = locationSource,
+                            photoBase64 = photoBitmap?.let { encodePhoto(it) },
+                            photoMime = if (photoBitmap != null) "image/jpeg" else null
                         )
                         val res = api.submitReport(req)
                         if (res.isSuccessful) {

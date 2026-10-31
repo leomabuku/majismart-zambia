@@ -6,14 +6,15 @@ import {
   MapPin, 
   Bell, 
   Cpu, 
-  LogOut, 
+  LogOut,
+  ShieldCheck,
   User,
   Radio
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Sidebar({ activeTab, setActiveTab, alertCount, reportCount, isLive }) {
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
   const displayName = user?.full_name || 'Signed in';
   const roleLabel = user?.role === 'admin' ? 'Administrator' : user?.role === 'technician' ? 'Technician' : 'Customer';
   const initial = (displayName.trim()[0] || 'U').toUpperCase();
@@ -77,15 +78,28 @@ export default function Sidebar({ activeTab, setActiveTab, alertCount, reportCou
           {alertCount > 0 && <span className="nav-badge">{alertCount}</span>}
         </button>
 
-        <button 
-          className={`nav-item ${activeTab === 'simulator' ? 'active' : ''}`}
-          onClick={() => setActiveTab('simulator')}
-          style={{ marginTop: '12px', border: '1px dashed rgba(72, 202, 228, 0.4)' }}
-        >
-          <Cpu size={18} color="#48CAE4" />
-          <span style={{ color: '#48CAE4' }}>ESP32 Simulator</span>
-          <span className="badge-normal" style={{ fontSize: '10px', padding: '1px 5px', background: '#064E3B', color: '#6EE7B7' }}>LIVE</span>
-        </button>
+        {isAdmin && (
+          <button
+            className={`nav-item ${activeTab === 'simulator' ? 'active' : ''}`}
+            onClick={() => setActiveTab('simulator')}
+            style={{ marginTop: '12px', border: '1px dashed rgba(72, 202, 228, 0.4)' }}
+          >
+            <Cpu size={18} color="#48CAE4" />
+            <span style={{ color: '#48CAE4' }}>ESP32 Simulator</span>
+            <span className="badge-normal" style={{ fontSize: '10px', padding: '1px 5px', background: '#064E3B', color: '#6EE7B7' }}>LIVE</span>
+          </button>
+        )}
+
+        {isAdmin && (
+          <button
+            className={`nav-item ${activeTab === 'team' ? 'active' : ''}`}
+            onClick={() => setActiveTab('team')}
+            style={{ marginTop: '12px', border: '1px dashed rgba(72, 202, 228, 0.4)' }}
+          >
+            <ShieldCheck size={18} color="#48CAE4" />
+            <span style={{ color: '#48CAE4' }}>Team &amp; Roles</span>
+          </button>
+        )}
       </nav>
 
       {/* User Footer */}

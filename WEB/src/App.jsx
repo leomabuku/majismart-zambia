@@ -8,11 +8,13 @@ import TankAnalytics from './pages/TankAnalytics';
 import CommunityReports from './pages/CommunityReports';
 import IncidentMap from './pages/IncidentMap';
 import AlertsCenter from './pages/AlertsCenter';
+import TeamRoles from './pages/TeamRoles';
 import HardwareSimulator from './pages/HardwareSimulator';
 import MobileAppSimulator from './components/MobileAppSimulator';
 import LoginPage from './pages/LoginPage';
 
 function MainApp() {
+  const { isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [showMobileApp, setShowMobileApp] = useState(false);
   const [summary, setSummary] = useState(null);
@@ -115,6 +117,7 @@ function MainApp() {
       case 'map': return 'Geographic Infrastructure Map';
       case 'alerts': return 'Telemetry Alerts Center';
       case 'simulator': return 'ESP32 Hardware Simulator';
+      case 'team': return 'Team & Role Management';
       default: return 'SmartWater Zambia';
     }
   };
@@ -207,7 +210,7 @@ function MainApp() {
             />
           )}
 
-          {activeTab === 'simulator' && (
+          {activeTab === 'simulator' && isAdmin && (
             <HardwareSimulator 
               onReadingSent={(data) => {
                 setLastTelemetry(data);
@@ -216,6 +219,8 @@ function MainApp() {
               lastPacket={lastTelemetry}
             />
           )}
+          {activeTab === 'team' && isAdmin && <TeamRoles />}
+
         </main>
       </div>
     </div>
