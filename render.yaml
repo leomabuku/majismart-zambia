@@ -48,7 +48,7 @@ services:
       - key: CORS_ORIGINS
         sync: false
       - key: DEVICE_OFFLINE_TIMEOUT_SECONDS
-        value: '300'
+        value: '900'
       - key: SSE_HEARTBEAT_MS
         value: '25000'
       # No hardware is attached to this demo deployment, so without synthetic telemetry

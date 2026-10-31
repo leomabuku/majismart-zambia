@@ -85,7 +85,7 @@ You should see 5 stations / 5 tanks / 5 devices and `TANK_001` at 69%.
 
 `DEMO_MODE` (see `BACKEND/src/services/demoTelemetryService.js`) emits a mean-reverting random-walk reading for each seeded tank every `DEMO_INTERVAL_SECONDS` (90 s) **through the real ingestion pipeline**, so device auth, threshold alerts, tank status, charts and the SSE stream all behave as they would with sensors.
 
-Before connecting real sensors: set `DEMO_MODE=false` and set `DEVICE_OFFLINE_TIMEOUT_SECONDS` to 2–3× your gateway reporting interval (currently 300 s).
+Before connecting real sensors: set `DEMO_MODE=false` and set `DEVICE_OFFLINE_TIMEOUT_SECONDS` to 2–3× your gateway reporting interval (currently 900 s — deliberately generous so short network hiccups never mark the demo devices offline).
 
 > The Render URL is `https://<service-name>.onrender.com`. `render.yaml` asks for `majismart-api`; if the name is taken Render appends a suffix — use the exact URL it shows and put it in `VITE_API_BASE_URL` (step 2) and `RENDER_API_URL` (step 4).
 

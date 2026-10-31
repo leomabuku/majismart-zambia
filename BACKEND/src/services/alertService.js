@@ -18,8 +18,30 @@ export class AlertService {
       WHERE tank_id = ? AND status = 'ACTIVE'
     `).all(tank.id);
 
-    const hasCriticalAlert = activeAlerts.some(a => a.alert_type === 'CRITICAL_WATER');
-    const hasLowAlert = activeAlerts.some(a => a.alert_type === 'LOW_WATER');
+    // Telemetry resumed for this tank: close any stale offline alert.
+    if (activeAlerts.some(a => a.alert_type === 'DEVICE_OFFLINE')) {
+      await db.prepare(`
+        UPDATE water_alerts
+        SET status = 'RESOLVED', resolved_at = datetime('now')
+        WHERE tank_id = ? AND alert_type = 'DEVICE_OFFLINE' AND status = 'ACTIVE'
+      `).run(tank.id);
+
+      realtime.broadcast('ALERT_RESOLVED', {
+        tank_id: tank.id,
+        tank_name: tank.name,
+        reason: 'DEVICE_ONLINE',
+        resolved_at: new Date().toISOString()
+      });
+    }
+
+    // Recovery handling below must only consider water-level alerts. Counting every
+    // active alert made each reading emit a new WATER_RECOVERED alert whenever a
+    // DEVICE_OFFLINE alert existed for the tank.
+    const levelAlerts = activeAlerts.filter(
+      (a) => a.alert_type === 'LOW_WATER' || a.alert_type === 'CRITICAL_WATER'
+    );
+    const hasCriticalAlert = levelAlerts.some(a => a.alert_type === 'CRITICAL_WATER');
+    const hasLowAlert = levelAlerts.some(a => a.alert_type === 'LOW_WATER');
 
     // Case 1: Critical Threshold Breach (<= 15%)
     if (percent <= critThreshold) {
@@ -80,7 +102,7 @@ export class AlertService {
     }
     // Case 3: Water Level Recovered (>= recovery threshold)
     else if (percent >= recovThreshold) {
-      if (activeAlerts.length > 0) {
+      if (levelAlerts.length > 0) {
         // Resolve all active low/critical alerts for this tank
         await db.prepare(`
           UPDATE water_alerts 
