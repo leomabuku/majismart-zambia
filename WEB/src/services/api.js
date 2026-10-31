@@ -21,9 +21,11 @@ const pageHost = typeof window !== 'undefined' ? window.location.hostname : '';
 const isLocalPage = !pageHost
   || /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])$/.test(pageHost);
 
-const API_BASE = buildBase && (isLocalPage || buildBase.startsWith('http'))
+// A hosted development preview is not localhost in the user's browser.
+// Always use Vite's local proxy in dev unless an explicit API URL was supplied.
+const API_BASE = buildBase && (import.meta.env.DEV || isLocalPage || buildBase.startsWith('http'))
   ? buildBase
-  : (isLocalPage ? '/api' : FALLBACK_API_BASE);
+  : (import.meta.env.DEV || isLocalPage ? '/api' : FALLBACK_API_BASE);
 
 if (typeof console !== 'undefined') {
   console.info('[API] base:', API_BASE, buildBase ? '(from build variable)' : '(built-in fallback)');
