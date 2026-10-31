@@ -1,18 +1,25 @@
-# Cloudflare Pages headers for the MajiSmart Zambia dashboard.
+# Cloudflare Pages headers for the SmartWater Zambia dashboard.
 # Docs: https://developers.cloudflare.com/pages/configuration/headers/
 #
 # NOTE: a Content-Security-Policy is intentionally left commented out. Fill in the
 # real API origin first, otherwise the dashboard cannot reach the API.
-# Recommended policy (replace https://api.example.zm with your API host):
-#   Content-Security-Policy: default-src 'self'; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://images.unsplash.com https://*.supabase.co; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https://api.example.zm https://*.supabase.co; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+# Recommended policy (replace https://api.example.zm with your API host).
+# The accounts.google.com entries are REQUIRED once this is enabled, or Google
+# sign-in breaks (it loads a script, opens a popup frame and calls back to GIS):
+#   Content-Security-Policy: default-src 'self'; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://images.unsplash.com https://*.supabase.co https://*.googleusercontent.com; style-src 'self' 'unsafe-inline' https://accounts.google.com; script-src 'self' https://accounts.google.com; connect-src 'self' https://api.example.zm https://*.supabase.co https://accounts.google.com; frame-src https://accounts.google.com; font-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
 
+# Cross-Origin-Opener-Policy MUST allow popups. Google Identity Services signs
+# the user in through a popup that postMessages the credential back to this
+# window; with `same-origin` the opener reference is severed, the popup lands on
+# accounts.google.com/gsi/transform and stays blank forever. This is the one
+# hardening header Google sign-in cannot work without.
 /*
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: geolocation=(self), camera=(), microphone=(), payment=()
   Strict-Transport-Security: max-age=31536000; includeSubDomains
-  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Opener-Policy: same-origin-allow-popups
   X-Permitted-Cross-Domain-Policies: none
 
 # Hashed Vite assets are content-addressed, so they can be cached for a year.
