@@ -235,3 +235,21 @@ test('case events are admin-only and preserve original customer category', async
   assert.equal(report.data.category,'WATER_SHORTAGE');
   assert.equal(report.data.findings,undefined);
 });
+
+test('administrative analytics use the latest case classification without multiplying reports', async () => {
+  const customer = await login(CUSTOMER_EMAIL, CUSTOMER_PASSWORD);
+  const admin = await login(ADMIN_EMAIL, ADMIN_PASSWORD);
+  const location = `Case aggregate ${Date.now()}`;
+  const report = await (await fetch(`${BASE_URL}/api/reports`,{method:'POST',headers:authed(customer.token),body:JSON.stringify({category:'WATER_SHORTAGE',title:'Analysis',description:'Issue',location_name:location})})).json();
+  const caseUrl=`${BASE_URL}/api/reports/${report.data.id}/case`;
+  for(const event of [{confirmed_category:'DAMAGED_VALVE',severity:'HIGH'},{confirmed_category:'BURST_PIPE',outcome:'PENDING'}]) {
+    assert.equal((await fetch(caseUrl,{method:'POST',headers:authed(admin.token),body:JSON.stringify(event)})).status,201);
+    await new Promise(resolve => setTimeout(resolve, 1100)); // SQLite case events currently use second precision
+  }
+  const result=await (await fetch(`${BASE_URL}/api/analytics/reports?location=${encodeURIComponent(location)}`,{headers:authed(admin.token)})).json();
+  assert.equal(result.data.total,1);
+  assert.equal(result.data.categories[0].label,'WATER_SHORTAGE');
+  assert.equal(result.data.classifications[0].label,'BURST_PIPE');
+  assert.equal(result.data.severities[0].label,'HIGH');
+  assert.equal(result.data.outcomes[0].label,'PENDING');
+});

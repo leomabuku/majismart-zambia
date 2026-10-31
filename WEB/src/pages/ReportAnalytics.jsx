@@ -38,9 +38,14 @@ export default function ReportAnalytics({ stations }) {
       <section className="card" style={{ padding: 20, marginTop: 16 }}><h3>Submission cohort · {result.total} reports</h3><p>Awaiting review: {result.statuses.SUBMITTED || 0} · Reviewed: {result.statuses.ACKNOWLEDGED || 0} · Investigating: {result.statuses.IN_PROGRESS || 0} · Resolved: {result.statuses.RESOLVED || 0} · Rejected: {result.statuses.REJECTED || 0}</p><p>Resolution rate: {number(result.resolution.rate_percent)}{result.resolution.rate_percent == null ? '' : '%'} ({result.resolution.eligible} eligible, excluding rejected). Mean / median resolution: {number(result.resolution.mean_hours)} / {number(result.resolution.median_hours)} hours ({result.resolution.observations} timed reports).</p></section>
       {table('Reported categories', result.categories, true)}
       {table('Recorded location names', result.locations)}
+      {table('Stations', result.stations.map(row => ({...row, label: stations.find(s=>s.id===row.label)?.name || row.label || 'Unassigned'})))}
+      {table('Administrative classifications (latest recorded per report)', result.classifications)}
+      {table('Operational severity (latest recorded per report)', result.severities)}
+      {table('Case outcome (latest recorded per report)', result.outcomes)}
       {table('Submissions by day', result.days)}
+      {table('Submissions by month', result.months)}
       <TelemetryIntelligence from={filters.from} to={filters.to} />
-      <p>Location names are grouped as recorded; they are not verified boundaries. Resolution duration uses the latest recorded resolution event for currently resolved reports. Filters apply to submission dates and current report fields. The three known baseline reports are excluded; other test records cannot currently be identified automatically. Report analytics is not certified as operational-only.</p>
+      <p>Administrative classifications are separate from customer categories; unclassified reports are included as unspecified. Location names are grouped as recorded; they are not verified boundaries. Resolution duration uses the latest recorded resolution event for currently resolved reports. Filters apply to submission dates and current report fields. The three known baseline reports are excluded; other test records cannot currently be identified automatically. Report analytics is not certified as operational-only.</p>
     </>}
   </div>;
 }

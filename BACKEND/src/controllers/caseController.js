@@ -23,7 +23,7 @@ export class CaseController {
       const report = await db.prepare('SELECT id FROM community_reports WHERE id = ?').get(req.params.id);
       if (!report) return res.status(404).json({success:false,error:'Report not found'});
       const id = 'case-' + crypto.randomUUID();
-      await db.prepare(`INSERT INTO report_case_events (id,report_id,actor_id,confirmed_category,severity,suspected_cause,confirmed_cause,findings,action_taken,outcome,assigned_to,notes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`).run(id, req.params.id, req.user.id, ...['confirmed_category','severity','suspected_cause','confirmed_cause','findings','action_taken','outcome','assigned_to','notes'].map(k => b[k] || null));
+      await db.prepare(`INSERT INTO report_case_events (id,report_id,actor_id,confirmed_category,severity,suspected_cause,confirmed_cause,findings,action_taken,outcome,assigned_to,notes,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(id, req.params.id, req.user.id, ...['confirmed_category','severity','suspected_cause','confirmed_cause','findings','action_taken','outcome','assigned_to','notes'].map(k => b[k] || null), new Date().toISOString());
       realtime.broadcast('REPORT_STATUS_CHANGED', {});
       res.status(201).json({success:true,data:{id}});
     } catch (err) { console.error('[Case]', err.message); res.status(500).json({success:false,error:'Unable to save case event'}); }
