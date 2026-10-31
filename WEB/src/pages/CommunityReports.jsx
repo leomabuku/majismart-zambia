@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import ReportLocationCard from '../components/ReportLocationCard';
+import CaseManagement from '../components/CaseManagement';
 import { 
   Plus, 
   Filter, 
@@ -72,6 +73,7 @@ export default function CommunityReports({ reports, onReload }) {
   };
 
   const filtered = reports.filter(r => {
+    if (!isAdmin && r.reporter_id !== user?.id) return false;
     if (filterCategory !== 'ALL' && r.category !== filterCategory) return false;
     if (filterStatus !== 'ALL' && r.status !== filterStatus) return false;
     return true;
@@ -299,6 +301,7 @@ export default function CommunityReports({ reports, onReload }) {
 
             {/* GPS fix, directions and photo evidence */}
             <ReportLocationCard report={selectedReport} />
+            {isAdmin && <CaseManagement reportId={selectedReport.id} />}
 
             {/* Lifecycle History Audit Timeline */}
             <h4 style={{ fontSize: '14px', marginBottom: '10px', color: '#03045E' }}>Status Progression History</h4>

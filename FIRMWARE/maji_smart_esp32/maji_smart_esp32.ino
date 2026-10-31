@@ -3,20 +3,14 @@
  * MAJISMART ZAMBIA — ESP32 FIRMWARE FOR WATER TANK MONITORING
  * Hardware: ESP32 DevKit V1 + Ultrasonic Sensor (HC-SR04 / JSN-SR04T) + Status LEDs
  * 
- * Payload contract matches MajiSmart backend specification:
- * {
- *   "device_id": "ESP32_001",
- *   "tank_id": "TANK_001",
- *   "distance_cm": 15.5,
- *   "water_depth_cm": 34.5,
- *   "water_level_percent": 69,
- *   "status": "NORMAL"
- * }
+ * Sends authenticated raw sensor distance; the server interprets geometry,
+ * calibration and condition. Configure HTTPS, CA certificate and device key.
  * ==============================================================================
  */
 
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 
 // ------------------------------------------------------------------------------
@@ -26,6 +20,8 @@ const char* DEVICE_ID       = "ESP32_001";
 const char* TANK_ID         = "TANK_001";
 const char* BACKEND_URL     = "https://YOUR-RENDER-SERVICE.onrender.com/api/iot/readings";
 const char* IOT_API_KEY     = "YOUR_DEVICE_API_KEY";
+// Install the trusted CA certificate for the HTTPS server, not an insecure bypass.
+const char* SERVER_CA_CERT = "YOUR_CA_CERT_PEM";
 
 // Wi-Fi Credentials
 const char* WIFI_SSID       = "YOUR_WIFI_SSID";
@@ -43,18 +39,6 @@ const unsigned long REPORT_INTERVAL_MS = 10000; // Send reading every 10 seconds
 #define LED_GREEN    2   // Normal water level indicator
 #define LED_YELLOW   4   // Low water warning indicator
 #define LED_RED      15  // Critical water alert indicator
-
-// ------------------------------------------------------------------------------
-// TANK GEOMETRY & THRESHOLD CONFIGURATION (Centimetres)
-// ------------------------------------------------------------------------------
-// Example calibrated tank: 50.0 cm total height
-// When distance = 15.5 cm, depth = 34.5 cm -> 69% (NORMAL)
-const float TANK_TOTAL_HEIGHT_CM     = 50.0;
-const float TANK_USABLE_HEIGHT_CM    = 50.0;
-const float SENSOR_OFFSET_CM         = 0.0;  // Offset from sensor to max fill mark
-
-const float LOW_THRESHOLD_PERCENT      = 25.0; // Below 25% is LOW
-const float CRITICAL_THRESHOLD_PERCENT = 15.0; // Below 15% is CRITICAL
 
 unsigned long lastReportTime = 0;
 int retryAttempts = 0;
@@ -100,34 +84,10 @@ void loop() {
       return;
     }
 
-    // 2. Calculate water depth and percentage
-    float water_depth_cm = (TANK_TOTAL_HEIGHT_CM - distance_cm) - SENSOR_OFFSET_CM;
-    if (water_depth_cm < 0) water_depth_cm = 0;
-    if (water_depth_cm > TANK_USABLE_HEIGHT_CM) water_depth_cm = TANK_USABLE_HEIGHT_CM;
+    // The backend alone interprets distance using the installed calibration.
+    Serial.printf("[SENSOR] Median distance: %.2f cm\n", distance_cm);
+    sendTelemetry(distance_cm);
 
-    float raw_percent = (water_depth_cm / TANK_USABLE_HEIGHT_CM) * 100.0;
-    int water_level_percent = (int)round(raw_percent);
-    if (water_level_percent < 0) water_level_percent = 0;
-    if (water_level_percent > 100) water_level_percent = 100;
-
-    // 3. Determine status and drive LED indicators
-    const char* status = "NORMAL";
-    if (water_level_percent <= CRITICAL_THRESHOLD_PERCENT) {
-      status = "CRITICAL";
-      setLEDs(false, false, true); // Red ON
-    } else if (water_level_percent <= LOW_THRESHOLD_PERCENT) {
-      status = "LOW";
-      setLEDs(false, true, false); // Yellow ON
-    } else {
-      status = "NORMAL";
-      setLEDs(true, false, false); // Green ON
-    }
-
-    Serial.printf("[SENSOR] Distance: %.1f cm | Depth: %.1f cm | Level: %d%% | Status: %s\n",
-                  distance_cm, water_depth_cm, water_level_percent, status);
-
-    // 4. Transmit telemetry to MajiSmart Backend
-    sendTelemetry(distance_cm, water_depth_cm, water_level_percent, status);
   }
 }
 
@@ -153,31 +113,37 @@ float measureDistance() {
     delay(20);
   }
 
-  // Find median of valid readings
-  float validSum = 0;
-  int validCount = 0;
-  for (int i = 0; i < 5; i++) {
-    if (readings[i] > 0) {
-      validSum += readings[i];
-      validCount++;
-    }
+  // Reject timeouts/out-of-range samples and require a majority of valid pings.
+  float valid[5];
+  int count = 0;
+  for (int i = 0; i < 5; i++) if (readings[i] >= 2.0 && readings[i] <= 400.0) valid[count++] = readings[i];
+  if (count < 3) return -1.0;
+  for (int i = 1; i < count; i++) {
+    float x = valid[i]; int j = i - 1;
+    while (j >= 0 && valid[j] > x) { valid[j + 1] = valid[j]; j--; }
+    valid[j + 1] = x;
   }
+  return count % 2 ? valid[count / 2] : (valid[count / 2 - 1] + valid[count / 2]) / 2.0;
 
-  if (validCount == 0) return -1.0;
-  return validSum / validCount;
 }
 
 // ------------------------------------------------------------------------------
 // SEND TELEMETRY IN PHOTO CONTRACT FORMAT
 // ------------------------------------------------------------------------------
-void sendTelemetry(float distance_cm, float water_depth_cm, int water_level_percent, const char* status) {
+void sendTelemetry(float distance_cm) {
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("[HTTP] Wi-Fi not connected. Telemetry queued/dropped.");
+    Serial.println("[HTTP] Wi-Fi not connected. Reading dropped; will sample again on the next interval.");
     return;
   }
 
+  if (!String(BACKEND_URL).startsWith("https://") || String(SERVER_CA_CERT).indexOf("BEGIN CERTIFICATE") < 0) {
+    Serial.println("[HTTP] Configure HTTPS and a trusted CA certificate before use.");
+    return;
+  }
+  WiFiClientSecure client;
+  client.setCACert(SERVER_CA_CERT);
   HTTPClient http;
-  http.begin(BACKEND_URL);
+  if (!http.begin(client, BACKEND_URL)) { Serial.println("[HTTP] TLS setup failed"); return; }
   http.addHeader("Content-Type", "application/json");
   http.addHeader("x-api-key", IOT_API_KEY);
   http.setTimeout(5000);
@@ -187,9 +153,6 @@ void sendTelemetry(float distance_cm, float water_depth_cm, int water_level_perc
   doc["device_id"]           = DEVICE_ID;
   doc["tank_id"]             = TANK_ID;
   doc["distance_cm"]          = serialized(String(distance_cm, 1));
-  doc["water_depth_cm"]       = serialized(String(water_depth_cm, 1));
-  doc["water_level_percent"]  = water_level_percent;
-  doc["status"]              = status;
 
   String requestBody;
   serializeJson(doc, requestBody);
@@ -199,12 +162,19 @@ void sendTelemetry(float distance_cm, float water_depth_cm, int water_level_perc
 
   int httpResponseCode = http.POST(requestBody);
 
-  if (httpResponseCode > 0) {
+  if (httpResponseCode >= 200 && httpResponseCode < 300) {
     String response = http.getString();
-    Serial.printf("[HTTP] Success (Code: %d): %s\n", httpResponseCode, response.c_str());
+    Serial.printf("[HTTP] Accepted (Code: %d)\n", httpResponseCode);
+    StaticJsonDocument<768> result;
+    if (deserializeJson(result, response) == DeserializationError::Ok) {
+      const char* condition = result["data"]["condition"] | "";
+      if (strcmp(condition, "CRITICAL") == 0) setLEDs(false, false, true);
+      else if (strcmp(condition, "LOW") == 0 || strcmp(condition, "WARNING") == 0) setLEDs(false, true, false);
+      else if (strcmp(condition, "NORMAL") == 0) setLEDs(true, false, false);
+    }
     retryAttempts = 0;
   } else {
-    Serial.printf("[HTTP] Error sending telemetry. Code: %d, Error: %s\n",
+    Serial.printf("[HTTP] Rejected or failed; next sample will retry. Code: %d, Error: %s\n",
                   httpResponseCode, http.errorToString(httpResponseCode).c_str());
     retryAttempts++;
   }

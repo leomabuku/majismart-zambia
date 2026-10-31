@@ -73,7 +73,7 @@ fun LiveMapScreen(
                                 color = MajiNavy
                             )
                             Text(
-                                text = "${tanks.size} Tanks • ${reports.size} Reported Leaks",
+                                text = "${tanks.size} Tanks • ${reports.size} Reports",
                                 fontSize = 12.sp,
                                 color = Color.Gray
                             )

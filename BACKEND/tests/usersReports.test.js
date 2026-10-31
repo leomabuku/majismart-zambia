@@ -181,3 +181,57 @@ test('oversized or unsupported photos are rejected', async () => {
   });
   assert.equal(res.status, 400);
 });
+
+test('report analytics is admin-only, excludes seed reports and validates dates', async () => {
+  const customer = await login(CUSTOMER_EMAIL, CUSTOMER_PASSWORD);
+  const admin = await login(ADMIN_EMAIL, ADMIN_PASSWORD);
+  assert.equal((await fetch(`${BASE_URL}/api/analytics/reports`, { headers: authed(customer.token) })).status, 403);
+  assert.equal((await fetch(`${BASE_URL}/api/analytics/reports?from=2026-02-30`, { headers: authed(admin.token) })).status, 400);
+  const res = await fetch(`${BASE_URL}/api/analytics/reports?from=2100-01-01`, { headers: authed(admin.token) });
+  const body = await res.json();
+  assert.equal(res.status, 200);
+  assert.equal(body.data.total, 0);
+  assert.equal(body.data.resolution.rate_percent, null);
+  assert.equal(body.data.resolution.mean_hours, null);
+});
+
+test('analytics counts reports once, excludes rejected from resolution rate and uses recorded resolution history', async () => {
+  const customer = await login(CUSTOMER_EMAIL, CUSTOMER_PASSWORD);
+  const admin = await login(ADMIN_EMAIL, ADMIN_PASSWORD);
+  const location = `Analytics test ${Date.now()}`;
+  const create = async category => {
+    const response = await fetch(`${BASE_URL}/api/reports`, { method: 'POST', headers: authed(customer.token), body: JSON.stringify({ category, title: 'Test report', description: 'Test', location_name: location }) });
+    assert.equal(response.status, 201);
+    return (await response.json()).data.id;
+  };
+  const first = await create('WATER_SHORTAGE');
+  const second = await create('PIPE_LEAKAGE');
+  for (const [id, status] of [[first, 'IN_PROGRESS'], [first, 'RESOLVED'], [second, 'REJECTED']]) {
+    const response = await fetch(`${BASE_URL}/api/reports/${id}/status`, { method: 'PUT', headers: authed(admin.token), body: JSON.stringify({ status, admin_notes: 'Internal only' }) });
+    assert.equal(response.status, 200);
+  }
+  const res = await fetch(`${BASE_URL}/api/analytics/reports?location=${encodeURIComponent(location)}`, { headers: authed(admin.token) });
+  const data = (await res.json()).data;
+  assert.equal(data.total, 2);
+  assert.equal(data.resolution.eligible, 1);
+  assert.equal(data.resolution.rate_percent, 100);
+  assert.equal(data.resolution.observations, 1);
+  assert.equal(data.categories.length, 2);
+  const ownerView = await (await fetch(`${BASE_URL}/api/reports/${first}`, { headers: authed(customer.token) })).json();
+  assert.equal(ownerView.data.admin_notes, null);
+  assert.ok(ownerView.data.history.every(event => !('notes' in event)));
+});
+
+test('case events are admin-only and preserve original customer category', async () => {
+  const customer = await login(CUSTOMER_EMAIL, CUSTOMER_PASSWORD);
+  const admin = await login(ADMIN_EMAIL, ADMIN_PASSWORD);
+  const created = await (await fetch(`${BASE_URL}/api/reports`,{method:'POST',headers:authed(customer.token),body:JSON.stringify({category:'WATER_SHORTAGE',title:'Case test',description:'No water',location_name:'Test'})})).json();
+  const path = `${BASE_URL}/api/reports/${created.data.id}/case`;
+  assert.equal((await fetch(path,{headers:authed(customer.token)})).status,403);
+  assert.equal((await fetch(path,{method:'POST',headers:authed(admin.token),body:JSON.stringify({confirmed_category:'DAMAGED_VALVE',severity:'HIGH',findings:'Valve damaged',action_taken:'REPAIR',outcome:'RESOLVED'})})).status,201);
+  const events = await (await fetch(path,{headers:authed(admin.token)})).json();
+  assert.equal(events.data[0].confirmed_category,'DAMAGED_VALVE');
+  const report = await (await fetch(`${BASE_URL}/api/reports/${created.data.id}`,{headers:authed(customer.token)})).json();
+  assert.equal(report.data.category,'WATER_SHORTAGE');
+  assert.equal(report.data.findings,undefined);
+});

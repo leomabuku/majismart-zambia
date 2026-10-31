@@ -71,10 +71,11 @@ export class DemoTelemetryService {
       const rows = await db.prepare(`
         SELECT t.tank_id_code, t.usable_height_cm, t.total_height_cm, t.sensor_offset_cm,
                t.current_water_percent, t.low_threshold_percent, t.critical_threshold_percent,
-               d.device_id_code
+               d.device_id_code, i.empty_distance_cm, i.full_distance_cm, i.measurement_offset_cm
         FROM tanks t
         JOIN monitoring_devices d ON d.tank_id = t.id
-        WHERE d.is_active = TRUE
+        JOIN tank_installations i ON i.tank_id = t.id
+        WHERE d.is_active = TRUE AND i.provenance = 'SIMULATED'
         ORDER BY t.tank_id_code ASC
       `).all();
 
@@ -102,7 +103,7 @@ export class DemoTelemetryService {
     this.levels.set(tank.tank_id_code, percent);
 
     const depth = Number(((usable * percent) / 100).toFixed(2));
-    const distance = Number(Math.max(0, usable - depth - offset).toFixed(2));
+    const distance = Number((Number(tank.empty_distance_cm) - (Number(tank.empty_distance_cm) - Number(tank.full_distance_cm)) * percent / 100 - Number(tank.measurement_offset_cm)).toFixed(2));
 
     const low = Number(tank.low_threshold_percent || 25);
     const critical = Number(tank.critical_threshold_percent || 15);
@@ -120,6 +121,7 @@ export class DemoTelemetryService {
       },
       headers: {
         'x-api-key': process.env.IOT_API_KEY,
+        'x-simulation': 'true',
         'x-forwarded-for': 'demo-telemetry'
       },
       socket: { remoteAddress: '127.0.0.1' }

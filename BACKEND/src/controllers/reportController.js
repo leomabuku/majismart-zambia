@@ -32,9 +32,11 @@ function normalisePhoto({ image_url, photo_base64, photo_mime }) {
 function sanitizeReportForViewer(report, viewer) {
   if (viewer?.role === 'admin') return report;
   const isOwner = viewer && report.reporter_id === viewer.id;
-  if (isOwner) return report;
+  const safeHistory = (report.history || []).map(({ notes, changed_by, changed_by_name, ...event }) => event);
+  const safe = { ...report, admin_notes: null, rejection_reason: isOwner ? report.rejection_reason : null, history: safeHistory };
+  if (isOwner) return safe;
   return {
-    ...report,
+    ...safe,
     reporter_id: null,
     reporter_name: null,
     reporter_phone: null,
@@ -244,7 +246,7 @@ export class ReportController {
       });
 
       // Broadcast real-time event to Web Dashboard
-      realtime.broadcast('REPORT_CREATED', created);
+      realtime.broadcast('REPORT_CREATED', { report_id: created.id });
 
       return res.status(201).json({
         success: true,
@@ -307,8 +309,6 @@ export class ReportController {
         report_id: id,
         previous_status: previousStatus,
         new_status: status,
-        admin_notes: admin_notes || null,
-        rejection_reason: rejection_reason || null,
         updated_at: new Date().toISOString()
       });
 

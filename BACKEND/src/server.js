@@ -25,6 +25,9 @@ import { AuthController } from './controllers/authController.js';
 import { UserController } from './controllers/userController.js';
 import { StationController } from './controllers/stationController.js';
 import { ReportController } from './controllers/reportController.js';
+import { CaseController } from './controllers/caseController.js';
+import { InstallationController } from './controllers/installationController.js';
+import { AnalyticsController } from './controllers/analyticsController.js';
 import { AlertController } from './controllers/alertController.js';
 import { WeatherController } from './controllers/weatherController.js';
 import { authenticateToken, optionalAuth, requireAdmin } from './middleware/auth.js';
@@ -79,7 +82,7 @@ const configuredOrigins = (process.env.CORS_ORIGINS || '*')
 app.use(cors({
   origin: configuredOrigins.includes('*') ? '*' : configuredOrigins,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'x-simulation']
 }));
 
 // Body parsers
@@ -137,13 +140,14 @@ app.get('/api/realtime/stream', (req, res) => {
 // Primary endpoint for ESP32 and simulator
 app.post('/api/iot/readings', IoTController.ingestReading);
 app.post('/api/readings', IoTController.ingestReading); // Alias
-app.get('/api/iot/history/:tank_id', IoTController.getReadingsHistory);
+app.get('/api/iot/history/:tank_id', optionalAuth, IoTController.getReadingsHistory);
 
 // Simulator helper endpoint (lets UI/subagent trigger realistic telemetry effortlessly)
 app.post('/api/simulator/send', (req, res) => {
   const { tank_id = 'TANK_001', device_id = 'ESP32_001', distance_cm, water_depth_cm, water_level_percent, status } = req.body;
   
-  // Create mock request to reuse exact ingestion logic
+  // Mark simulator calls; ingestion still checks device credentials and provenance.
+  req.headers['x-simulation'] = 'true';
   req.body = {
     device_id,
     tank_id,
@@ -172,16 +176,26 @@ app.patch('/api/users/:id/role', authenticateToken, requireAdmin, UserController
 // 3. MONITORING STATIONS & TANKS
 // ==========================================
 app.get('/api/dashboard/summary', StationController.getSummary);
-app.get('/api/stations', StationController.getAllStations);
-app.get('/api/stations/:id', StationController.getStationById);
-app.get('/api/tanks', StationController.getAllTanks);
-app.get('/api/tanks/:id', StationController.getTankById);
+app.get('/api/stations', optionalAuth, StationController.getAllStations);
+app.get('/api/stations/:id', optionalAuth, StationController.getStationById);
+app.get('/api/my/tanks', authenticateToken, StationController.getMyTanks);
+app.get('/api/tanks', optionalAuth, StationController.getAllTanks);
+app.get('/api/tanks/:id', optionalAuth, StationController.getTankById);
+app.post('/api/installations', authenticateToken, requireAdmin, InstallationController.create);
+app.post('/api/installations/:id/calibration-tests', authenticateToken, requireAdmin, InstallationController.calibrationTest);
+app.post('/api/installations/:id/verify-calibration', authenticateToken, requireAdmin, InstallationController.verifyCalibration);
+app.put('/api/devices/:device_id/credential', authenticateToken, requireAdmin, InstallationController.deviceCredential);
 app.put('/api/tanks/:id', authenticateToken, requireAdmin, StationController.updateTank);
 
 // ==========================================
 // 4. COMMUNITY REPORTS
 // ==========================================
+app.get('/api/analytics/telemetry', authenticateToken, requireAdmin, AnalyticsController.telemetry);
+app.get('/api/analytics/reports', authenticateToken, requireAdmin, AnalyticsController.reports);
+app.get('/api/my/reports', authenticateToken, (req, res) => { req.query.reporter_id = req.user.id; return ReportController.getAllReports(req, res); });
 app.get('/api/reports', optionalAuth, ReportController.getAllReports);
+app.get('/api/reports/:id/case', authenticateToken, requireAdmin, CaseController.list);
+app.post('/api/reports/:id/case', authenticateToken, requireAdmin, CaseController.create);
 app.get('/api/reports/:id', optionalAuth, ReportController.getReportById);
 app.post('/api/reports', optionalAuth, ReportController.createReport);
 app.put('/api/reports/:id/status', authenticateToken, requireAdmin, ReportController.updateStatus);
@@ -189,7 +203,7 @@ app.put('/api/reports/:id/status', authenticateToken, requireAdmin, ReportContro
 // ==========================================
 // 5. WATER ALERTS
 // ==========================================
-app.get('/api/alerts', AlertController.getAlerts);
+app.get('/api/alerts', optionalAuth, AlertController.getAlerts);
 app.put('/api/alerts/:id/acknowledge', authenticateToken, requireAdmin, AlertController.acknowledgeAlert);
 app.put('/api/alerts/:id/resolve', authenticateToken, requireAdmin, AlertController.resolveAlert);
 

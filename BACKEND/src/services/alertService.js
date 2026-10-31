@@ -44,7 +44,7 @@ export class AlertService {
     const hasLowAlert = levelAlerts.some(a => a.alert_type === 'LOW_WATER');
 
     // Case 1: Critical Threshold Breach (<= 15%)
-    if (percent <= critThreshold) {
+    if (reading.condition ? reading.condition === 'CRITICAL' : percent <= critThreshold) {
       if (!hasCriticalAlert) {
         // Resolve any lower severity alert first
         await db.prepare(`
@@ -76,7 +76,7 @@ export class AlertService {
       }
     }
     // Case 2: Low Threshold Breach (between critThreshold and lowThreshold)
-    else if (percent <= lowThreshold) {
+    else if (reading.condition ? reading.condition === 'LOW' : percent <= lowThreshold) {
       if (!hasLowAlert && !hasCriticalAlert) {
         const alertId = 'alt-' + crypto.randomUUID().slice(0, 8);
         const title = `WARNING: Low water level at ${percent}% on ${tank.name}`;
@@ -101,7 +101,7 @@ export class AlertService {
       }
     }
     // Case 3: Water Level Recovered (>= recovery threshold)
-    else if (percent >= recovThreshold) {
+    else if (reading.condition ? ['NORMAL','WARNING'].includes(reading.condition) : percent >= recovThreshold) {
       if (levelAlerts.length > 0) {
         // Resolve all active low/critical alerts for this tank
         await db.prepare(`
@@ -112,7 +112,7 @@ export class AlertService {
 
         const alertId = 'alt-' + crypto.randomUUID().slice(0, 8);
         const title = `RECOVERED: Water level normalized to ${percent}% on ${tank.name}`;
-        const message = `Tank level has recovered above threshold to ${percent}% (${reading.water_depth_cm}cm depth). Supply is stable.`;
+        const message = `Tank condition has recovered to ${percent}% (${reading.water_depth_cm}cm depth). Supply is stable.`;
 
         await db.prepare(`
           INSERT INTO water_alerts (id, tank_id, device_id, alert_type, severity, title, message, status)

@@ -1,5 +1,7 @@
 # MajiSmart Zambia 🇿🇲
 
+> Telemetry contract and setup have changed. See [integrated telemetry notes](docs/INTEGRATED_TELEMETRY.md); older examples below describe the legacy workflow.
+
 ### IoT-Enabled Smart Water Monitoring and Climate Resilience System
 
 MajiSmart Zambia is a production-minded IoT water management and civic incident reporting platform developed for Zambian water utilities and community members. It connects ultrasonic-equipped ESP32 hardware devices, a shared REST/Realtime backend, an administrative web dashboard, and a native Android customer application.

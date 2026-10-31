@@ -53,13 +53,13 @@ fun MyReportsScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Incident Dispatch History",
+                            text = "Your reports",
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp,
                             color = MajiNavy
                         )
                         Text(
-                            text = "Track Lusaka field unit dispatch & status timeline",
+                            text = "Track the status of reports you submitted",
                             fontSize = 12.sp,
                             color = Color.Gray
                         )
@@ -75,7 +75,7 @@ fun MyReportsScreen(
         // Status Filter Chips
         item {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(listOf("ALL" to "All Reports", "PENDING" to "In Progress", "RESOLVED" to "Resolved")) { (filterKey, filterLabel) ->
+                items(listOf("ALL" to "All Reports", "IN_PROGRESS" to "In Progress", "RESOLVED" to "Resolved")) { (filterKey, filterLabel) ->
                     FilterChip(
                         selected = selectedFilter == filterKey,
                         onClick = { selectedFilter = filterKey },

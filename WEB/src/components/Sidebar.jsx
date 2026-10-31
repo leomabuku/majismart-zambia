@@ -1,11 +1,11 @@
 import React from 'react';
-import { 
-  LayoutDashboard, 
-  Droplet, 
-  FileText, 
-  MapPin, 
-  Bell, 
-  Cpu, 
+import {
+  LayoutDashboard,
+  Droplet,
+  FileText,
+  MapPin,
+  Bell,
+  Cpu,
   LogOut,
   ShieldCheck,
   User,
@@ -36,23 +36,26 @@ export default function Sidebar({ activeTab, setActiveTab, alertCount, reportCou
 
       {/* Navigation */}
       <nav className="nav-menu">
-        <button 
+        <button
           className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
           onClick={() => setActiveTab('dashboard')}
         >
           <LayoutDashboard size={18} />
-          <span>Monitoring Dashboard</span>
+          <span>{isAdmin ? 'Monitoring Dashboard' : 'Your water'}</span>
         </button>
 
-        <button 
+        {isAdmin && <button
           className={`nav-item ${activeTab === 'analytics' ? 'active' : ''}`}
           onClick={() => setActiveTab('analytics')}
         >
           <Droplet size={18} />
           <span>Tanks & Analytics</span>
-        </button>
+        </button>}
 
-        <button 
+        {isAdmin && <button className={`nav-item ${activeTab === 'installation' ? 'active' : ''}`} onClick={() => setActiveTab('installation')}><Droplet size={18} /><span>Install tank</span></button>}
+        {isAdmin && <button className={`nav-item ${activeTab === 'report-analytics' ? 'active' : ''}`} onClick={() => setActiveTab('report-analytics')}><FileText size={18} /><span>Report intelligence</span></button>}
+
+        <button
           className={`nav-item ${activeTab === 'reports' ? 'active' : ''}`}
           onClick={() => setActiveTab('reports')}
         >
@@ -61,7 +64,7 @@ export default function Sidebar({ activeTab, setActiveTab, alertCount, reportCou
           {reportCount > 0 && <span className="nav-badge" style={{ background: '#0284C7' }}>{reportCount}</span>}
         </button>
 
-        <button 
+        <button
           className={`nav-item ${activeTab === 'map' ? 'active' : ''}`}
           onClick={() => setActiveTab('map')}
         >
@@ -69,7 +72,7 @@ export default function Sidebar({ activeTab, setActiveTab, alertCount, reportCou
           <span>Incident & Tank Map</span>
         </button>
 
-        <button 
+        <button
           className={`nav-item ${activeTab === 'alerts' ? 'active' : ''}`}
           onClick={() => setActiveTab('alerts')}
         >
@@ -77,18 +80,6 @@ export default function Sidebar({ activeTab, setActiveTab, alertCount, reportCou
           <span>Alerts Center</span>
           {alertCount > 0 && <span className="nav-badge">{alertCount}</span>}
         </button>
-
-        {isAdmin && (
-          <button
-            className={`nav-item ${activeTab === 'simulator' ? 'active' : ''}`}
-            onClick={() => setActiveTab('simulator')}
-            style={{ marginTop: '12px', border: '1px dashed rgba(72, 202, 228, 0.4)' }}
-          >
-            <Cpu size={18} color="#48CAE4" />
-            <span style={{ color: '#48CAE4' }}>ESP32 Simulator</span>
-            <span className="badge-normal" style={{ fontSize: '10px', padding: '1px 5px', background: '#064E3B', color: '#6EE7B7' }}>LIVE</span>
-          </button>
-        )}
 
         {isAdmin && (
           <button

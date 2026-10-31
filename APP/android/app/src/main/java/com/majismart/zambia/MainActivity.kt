@@ -102,96 +102,25 @@ fun MainAppScreen(api: MajiSmartApiService) {
     val notifications = NotificationHelper.notifications
     val unreadNotifCount = NotificationHelper.getUnreadCount()
 
-    // Default fallback sample tanks if offline or backend cold start
-    val sampleTanks = listOf(
-        Tank(
-            id = "1",
-            tankIdCode = "TANK_001",
-            name = "Chilenje South Primary Water Tank",
-            stationName = "Chilenje",
-            currentWaterDepthCm = 120f,
-            currentWaterPercent = 68,
-            currentStatus = "NORMAL",
-            totalHeightCm = 180f,
-            capacityLiters = 25000,
-            deviceIdCode = "ESP32_001",
-            deviceStatus = "ONLINE",
-            lastReadingAt = "Just now"
-        ),
-        Tank(
-            id = "2",
-            tankIdCode = "TANK_002",
-            name = "Kabwata Market Commercial Reservoir",
-            stationName = "Kabwata",
-            currentWaterDepthCm = 45f,
-            currentWaterPercent = 22,
-            currentStatus = "LOW",
-            totalHeightCm = 200f,
-            capacityLiters = 40000,
-            deviceIdCode = "ESP32_002",
-            deviceStatus = "ONLINE",
-            lastReadingAt = "5 mins ago"
-        ),
-        Tank(
-            id = "3",
-            tankIdCode = "TANK_003",
-            name = "Matero Substation Tank #3",
-            stationName = "Matero",
-            currentWaterDepthCm = 18f,
-            currentWaterPercent = 12,
-            currentStatus = "CRITICAL",
-            totalHeightCm = 150f,
-            capacityLiters = 35000,
-            deviceIdCode = "ESP32_003",
-            deviceStatus = "ONLINE",
-            lastReadingAt = "2 mins ago"
-        )
-    )
-
-    val sampleReports = listOf(
-        CommunityReport(
-            id = "rep_101",
-            category = "BURST_PIPE",
-            title = "Burst Pipe near Chilenje Market 4",
-            description = "Main line clean water leaking onto roadway since morning.",
-            locationName = "Chilenje South Market 4",
-            status = "PENDING",
-            adminNotes = "Crew Unit #2 assigned",
-            createdAt = "Today, 08:30"
-        ),
-        CommunityReport(
-            id = "rep_102",
-            category = "WATER_SHORTAGE",
-            title = "Low Pressure in Kabwata Block C",
-            description = "Community tap stands experiencing low water pressure.",
-            locationName = "Kabwata Commercial Hub",
-            status = "RESOLVED",
-            adminNotes = "Valve adjusted at central station",
-            createdAt = "Yesterday"
-        )
-    )
-
     fun refreshData() {
         scope.launch {
             isLoading = true
             try {
                 val tankRes = api.getTanks()
-                if (tankRes.isSuccessful && tankRes.body()?.data?.isNotEmpty() == true) {
+                if (tankRes.isSuccessful && tankRes.body()?.data != null) {
                     tanks = tankRes.body()!!.data!!
                 } else {
-                    tanks = sampleTanks
+                    tanks = emptyList()
                 }
 
                 val repRes = api.getReports()
-                if (repRes.isSuccessful && repRes.body()?.data?.isNotEmpty() == true) {
+                if (repRes.isSuccessful && repRes.body()?.data != null) {
                     reports = repRes.body()!!.data!!
                 } else {
-                    reports = sampleReports
+                    reports = emptyList()
                 }
             } catch (e: Exception) {
-                // Offline fallback handling
-                if (tanks.isEmpty()) tanks = sampleTanks
-                if (reports.isEmpty()) reports = sampleReports
+                // Keep last-known records on connection failure; do not fabricate readings.
             } finally {
                 isLoading = false
             }

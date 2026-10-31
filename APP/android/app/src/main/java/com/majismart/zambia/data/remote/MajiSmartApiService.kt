@@ -32,13 +32,13 @@ interface MajiSmartApiService {
     @GET("api/dashboard/summary")
     suspend fun getSummary(): Response<SummaryResponse>
 
-    @GET("api/tanks")
+    @GET("api/my/tanks")
     suspend fun getTanks(): Response<ApiResponse<List<Tank>>>
 
     @GET("api/tanks/{id}")
     suspend fun getTankById(@Path("id") id: String): Response<ApiResponse<Tank>>
 
-    @GET("api/reports")
+    @GET("api/my/reports")
     suspend fun getReports(): Response<ApiResponse<List<CommunityReport>>>
 
     @POST("api/reports")

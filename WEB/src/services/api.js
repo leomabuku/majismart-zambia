@@ -196,6 +196,7 @@ export const api = {
       eventSource.onopen = () => {
         setStatus('live');
         stopPolling();
+        onMessage('SYNC', null);
       };
 
       REALTIME_EVENTS.forEach((eventType) => {

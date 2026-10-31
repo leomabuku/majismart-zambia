@@ -13,7 +13,8 @@
  */
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5000/api/iot/readings';
-const API_KEY = process.env.IOT_API_KEY || 'majismart_iot_esp32_device_secret_2026';
+const API_KEY = process.env.IOT_API_KEY;
+if (!API_KEY) { console.error('Set IOT_API_KEY to the credential for a device registered as SIMULATED.'); process.exit(1); }
 
 const args = process.argv.slice(2);
 const modeArg = args.find(a => a.startsWith('--mode='))?.split('=')[1] || 'once';
@@ -29,7 +30,8 @@ async function sendReading(payload) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': API_KEY
+        'x-api-key': API_KEY,
+        'x-simulation': 'true'
       },
       body: JSON.stringify(payload)
     });

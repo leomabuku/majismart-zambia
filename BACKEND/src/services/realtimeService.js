@@ -62,7 +62,7 @@ class RealtimeService {
   broadcast(eventType, payload) {
     const data = JSON.stringify({
       event: eventType,
-      data: payload,
+      data: {}, // unauthenticated stream: never publish private record contents
       timestamp: new Date().toISOString()
     });
 
