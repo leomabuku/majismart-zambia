@@ -127,7 +127,7 @@ fun LoginScreen(api: MajiSmartApiService) {
 
             Spacer(Modifier.height(14.dp))
             Text(
-                "MajiSmart Zambia",
+                "SmartWater Zambia",
                 color = Color.White,
                 fontSize = 24.sp,
                 fontWeight = FontWeight.ExtraBold
@@ -154,7 +154,7 @@ fun LoginScreen(api: MajiSmartApiService) {
                         color = MajiNavy
                     )
                     Text(
-                        "Use your MajiSmart account or continue with Google.",
+                        "Use your SmartWater account or continue with Google.",
                         fontSize = 12.sp,
                         color = Color(0xFF64748B)
                     )
@@ -311,7 +311,7 @@ fun LoginScreen(api: MajiSmartApiService) {
 
             Spacer(Modifier.height(18.dp))
             Text(
-                "Administrator and community accounts are issued by the MajiSmart team.",
+                "Administrator and community accounts are issued by the SmartWater team.",
                 fontSize = 11.sp,
                 color = MajiSky,
                 textAlign = TextAlign.Center

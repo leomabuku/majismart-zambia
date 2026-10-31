@@ -81,7 +81,7 @@ fun SplashScreen() {
                 }
             }
             Spacer(Modifier.height(14.dp))
-            Text("MajiSmart Zambia", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text("SmartWater Zambia", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(10.dp))
             CircularProgressIndicator(color = MajiLightBlue, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
         }

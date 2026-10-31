@@ -103,7 +103,7 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
         }}>
           <div>
             <div style={{ fontSize: '11px', color: '#90E0EF', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 700 }}>
-              MajiSmart Customer App
+              SmartWater Customer App
             </div>
             <div style={{ fontSize: '17px', fontWeight: 800 }}>Community Water Status</div>
           </div>

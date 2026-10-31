@@ -26,7 +26,7 @@ data class AppNotification(
 
 object NotificationHelper {
     private const val CHANNEL_ID = "majismart_water_alerts"
-    private const val CHANNEL_NAME = "MajiSmart Water Telemetry Alerts"
+    private const val CHANNEL_NAME = "SmartWater Telemetry Alerts"
 
     val notifications = mutableStateListOf<AppNotification>()
 

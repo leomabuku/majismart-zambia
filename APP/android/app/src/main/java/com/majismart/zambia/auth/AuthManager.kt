@@ -87,7 +87,7 @@ object AuthManager {
             val response = api.login(LoginRequest(email.trim(), password))
             exchange(response.code(), response.body())
         } catch (e: Exception) {
-            Result.failure(Exception("Cannot reach the MajiSmart API. Check your connection."))
+            Result.failure(Exception("Cannot reach the SmartWater API. Check your connection."))
         }
     }
 
@@ -96,7 +96,7 @@ object AuthManager {
             val response = api.loginWithGoogle(GoogleLoginRequest(idToken))
             exchange(response.code(), response.body())
         } catch (e: Exception) {
-            Result.failure(Exception("Cannot reach the MajiSmart API. Check your connection."))
+            Result.failure(Exception("Cannot reach the SmartWater API. Check your connection."))
         }
     }
 
@@ -109,7 +109,7 @@ object AuthManager {
         }
         val message = body?.error ?: when (code) {
             401, 403 -> "Those details were not accepted."
-            in 500..599 -> "The MajiSmart API is unavailable right now. Try again shortly."
+            in 500..599 -> "The SmartWater API is unavailable right now. Try again shortly."
             else -> "Sign-in failed."
         }
         return Result.failure(Exception(message))

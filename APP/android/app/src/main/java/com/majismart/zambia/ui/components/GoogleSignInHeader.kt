@@ -65,7 +65,7 @@ fun GoogleSignInHeader(
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "MajiSmart Zambia",
+                                text = "SmartWater Zambia",
                                 fontSize = 22.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = Color.White

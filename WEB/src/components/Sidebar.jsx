@@ -27,8 +27,8 @@ export default function Sidebar({ activeTab, setActiveTab, alertCount, reportCou
             <Droplet size={24} color="#03045E" fill="#03045E" />
           </div>
           <div>
-            <div className="brand-title">MajiSmart</div>
-            <div className="brand-subtitle">Zambia IoT Water</div>
+            <div className="brand-title">SmartWater</div>
+            <div className="brand-subtitle">Zambia Smart Water</div>
           </div>
         </div>
       </div>

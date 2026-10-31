@@ -14,7 +14,21 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
+// A Google OAuth *client id* is a public identifier - it is inlined into every
+// browser bundle by design, and the security comes from the authorised-origin
+// list in Google Cloud, not from keeping this value secret.
+// The Cloudflare Pages variable wins when it is set and well formed. The
+// fallback keeps sign-in working when the variable is missing, was saved after
+// the build started, or was pasted truncated in the dashboard.
+const FALLBACK_GOOGLE_CLIENT_ID =
+  '66951276979-66l1j0kdakebc5hnjfjujb8ua2th125u.apps.googleusercontent.com';
+const CLIENT_ID_PATTERN = /^\d+-[a-z0-9]+\.apps\.googleusercontent\.com$/i;
+
+const configuredClientId = String(import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim();
+const GOOGLE_CLIENT_ID = CLIENT_ID_PATTERN.test(configuredClientId)
+  ? configuredClientId
+  : FALLBACK_GOOGLE_CLIENT_ID;
+
 const GIS_SRC = 'https://accounts.google.com/gsi/client';
 
 let gisPromise = null;
@@ -51,6 +65,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [googleReady, setGoogleReady] = useState(false);
+  const [googleFailed, setGoogleFailed] = useState(false);
   const googleButtonRef = useRef(null);
 
   const handleGoogleCredential = useCallback(async (response) => {
@@ -72,7 +87,11 @@ export default function LoginPage() {
     let cancelled = false;
 
     loadGoogleIdentityServices().then((ready) => {
-      if (cancelled || !ready || !googleButtonRef.current) return;
+      if (cancelled) return;
+      if (!ready || !googleButtonRef.current) {
+        setGoogleFailed(true);
+        return;
+      }
       try {
         window.google.accounts.id.initialize({
           client_id: GOOGLE_CLIENT_ID,
@@ -93,6 +112,7 @@ export default function LoginPage() {
         setGoogleReady(true);
       } catch (err) {
         console.warn('[auth] Google button could not be rendered', err);
+        setGoogleFailed(true);
       }
     });
 
@@ -118,7 +138,7 @@ export default function LoginPage() {
             <Droplet size={30} color="#03045E" fill="#03045E" />
           </div>
           <div>
-            <div className="auth-brand-title">MajiSmart Zambia</div>
+            <div className="auth-brand-title">SmartWater Zambia</div>
             <div className="auth-brand-sub">Smart Water Monitoring &amp; Climate Resilience</div>
           </div>
         </div>
@@ -139,7 +159,7 @@ export default function LoginPage() {
         </div>
 
         <div className="auth-brand-footer">
-          Lusaka, Zambia · Powered by the MajiSmart shared API
+          Lusaka, Zambia · Powered by the SmartWater shared API
         </div>
       </aside>
 
@@ -148,7 +168,7 @@ export default function LoginPage() {
         <div className="auth-card">
           <div className="auth-card-head">
             <h2>Sign in</h2>
-            <p>Use your MajiSmart account, or continue with Google.</p>
+            <p>Use your SmartWater account, or continue with Google.</p>
           </div>
 
           {error && (
@@ -210,26 +230,26 @@ export default function LoginPage() {
 
           <div className="auth-google">
             <div ref={googleButtonRef} className="auth-google-button" />
-            {!GOOGLE_CLIENT_ID && (
-              <p className="auth-google-note">
-                Google sign-in is not configured for this build.
-                Set <code>VITE_GOOGLE_CLIENT_ID</code> and redeploy.
-              </p>
-            )}
-            {GOOGLE_CLIENT_ID && !googleReady && (
+            {!googleReady && !googleFailed && (
               <p className="auth-google-note">Loading Google sign-in…</p>
+            )}
+            {googleFailed && (
+              <p className="auth-google-note">
+                Google sign-in could not load in this browser (a script blocker or
+                offline connection will do it). Email and password still work.
+              </p>
             )}
           </div>
 
           <p className="auth-footnote">
-            Administrator and community accounts are issued by the MajiSmart team.
+            Administrator and community accounts are issued by the SmartWater team.
             Google accounts are signed up as community members and can be upgraded
             by an administrator.
           </p>
         </div>
 
         <p className="auth-legal">
-          MajiSmart Zambia · Water security for Lusaka
+          SmartWater Zambia · Water security for Lusaka
         </p>
       </main>
     </div>

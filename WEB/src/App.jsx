@@ -115,7 +115,7 @@ function MainApp() {
       case 'map': return 'Geographic Infrastructure Map';
       case 'alerts': return 'Telemetry Alerts Center';
       case 'simulator': return 'ESP32 Hardware Simulator';
-      default: return 'MajiSmart Zambia';
+      default: return 'SmartWater Zambia';
     }
   };
 
@@ -156,7 +156,7 @@ function MainApp() {
             <span className="conn-dot" />
             <span className="conn-text">
               {connState === 'connecting'
-                ? 'Connecting to the MajiSmart API…'
+                ? 'Connecting to the SmartWater API…'
                 : 'Live stream unavailable — refreshing every 30s instead.'}
               {lastSyncAt ? ` Last sync ${lastSyncAt.toLocaleTimeString()}.` : ''}
               {' '}Free-tier servers may take up to a minute to wake.
@@ -231,7 +231,7 @@ function BootSplash() {
           <path d="M12 2.5c3.6 4.4 6.5 8 6.5 11.4a6.5 6.5 0 1 1-13 0C5.5 10.5 8.4 6.9 12 2.5z" />
         </svg>
       </div>
-      <div className="boot-text">MajiSmart Zambia</div>
+      <div className="boot-text">SmartWater Zambia</div>
       <div className="boot-sub">Restoring your session…</div>
     </div>
   );

@@ -92,7 +92,7 @@ app.get('/api/health', async (req, res) => {
     await db.healthCheck();
     res.json({
     status: 'ONLINE',
-    system: 'MajiSmart Zambia Core API',
+    system: 'SmartWater Zambia Core API',
     version: '1.0.0',
     timestamp: new Date().toISOString(),
     sse_clients: realtime.getClientCount(),
@@ -102,7 +102,7 @@ app.get('/api/health', async (req, res) => {
     google_signin: isGoogleAuthConfigured()
     });
   } catch {
-    res.status(503).json({ status: 'DEGRADED', system: 'MajiSmart Zambia Core API', error: 'Database unavailable' });
+    res.status(503).json({ status: 'DEGRADED', system: 'SmartWater Zambia Core API', error: 'Database unavailable' });
   }
 });
 
