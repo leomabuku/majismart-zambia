@@ -258,3 +258,17 @@ test('administrator can replace a device without allowing the old device to tran
   assert.equal((await deviceRequest({device_id:deviceCode,tank_id:tankCode,distance_cm:15},'rotated-test-credential-123456789')).status,403);
   assert.equal((await deviceRequest({device_id:newDevice,tank_id:tankCode,distance_cm:15})).status,201);
 });
+
+test('new failing calibration evidence blocks verification even after older passing tests', async () => {
+  const token=await loginAsAdmin(); const headers={'Content-Type':'application/json',Authorization:`Bearer ${token}`};
+  const list=await (await fetch(`${BASE_URL}/api/installations`,{headers})).json();
+  const installation=list.data.find(i=>i.tank_id_code===tankCode);
+  const testReading=async (distance,depth)=>fetch(`${BASE_URL}/api/installations/${installation.id}/calibration-tests`,{method:'POST',headers,body:JSON.stringify({distance_cm:distance,manual_depth_cm:depth})});
+  for(const [distance,depth] of [[50,0],[25,25],[0.1,50]]) assert.equal((await testReading(distance,depth)).status,201);
+  const verify=()=>fetch(`${BASE_URL}/api/installations/${installation.id}/verify-calibration`,{method:'POST',headers,body:JSON.stringify({max_error_cm:1})});
+  assert.equal((await verify()).status,200);
+  assert.equal((await testReading(20,25)).status,201);
+  assert.equal((await verify()).status,400);
+  const history=await (await fetch(`${BASE_URL}/api/installations/${installation.id}/calibration-tests`,{headers})).json();
+  assert.equal(history.data.installation_status,'AWAITING_CALIBRATION');
+});

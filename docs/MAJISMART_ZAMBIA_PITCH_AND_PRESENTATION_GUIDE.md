@@ -1,7 +1,9 @@
 # MajiSmart Zambia — pitch and presentation guide
 
-**Presenter:** developer / product lead  
-**Preparation date:** 31 October 2026. This guide describes the repository, not proof of a live deployment. Verify your demo environment before presenting.  
+**Presenter:** developer / product lead
+
+**Preparation date:** 31 October 2026. This guide describes the repository, not proof of a live deployment. Verify your demo environment before presenting.
+
 **Ground rule:** say “simulated” when using simulated readings; never call a configuration calibrated without the recorded checks or claim physical verification that has not occurred.
 
 ## 1. Introduction

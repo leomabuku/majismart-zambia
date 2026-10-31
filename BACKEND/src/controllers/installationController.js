@@ -59,7 +59,12 @@ export class InstallationController {
       const result = calculateMeasurement(config, distance_cm + Number(config.measurement_offset_cm));
       const id = `cal-${crypto.randomUUID()}`;
       const error = result.water_depth_cm - manual_depth_cm;
-      await db.prepare('INSERT INTO tank_calibration_tests (id,tank_id,actor_id,raw_distance_cm,manual_depth_cm,calculated_depth_cm,depth_error_cm) VALUES (?,?,?,?,?,?,?)').run(id,req.params.id,req.user.id,distance_cm,manual_depth_cm,result.water_depth_cm,error);
+      const now = new Date().toISOString();
+      await db.transaction(async tx => {
+        await tx.run('INSERT INTO tank_calibration_tests (id,tank_id,actor_id,raw_distance_cm,manual_depth_cm,calculated_depth_cm,depth_error_cm,created_at) VALUES (?,?,?,?,?,?,?,?)',id,req.params.id,req.user.id,distance_cm,manual_depth_cm,result.water_depth_cm,error,now);
+        // New evidence requires review before the installation is again called calibrated.
+        await tx.run("UPDATE tank_installations SET installation_status = 'AWAITING_CALIBRATION', updated_at = ? WHERE tank_id = ?",now,req.params.id);
+      });
       res.status(201).json({success:true,data:{id,calculated_depth_cm:result.water_depth_cm,depth_error_cm:error,estimated_volume_l:result.estimated_volume_l}});
     } catch { res.status(400).json({success:false,error:'Invalid measurement or calibration'}); }
   }
@@ -68,10 +73,10 @@ export class InstallationController {
     if (typeof tolerance !== 'number' || !Number.isFinite(tolerance) || tolerance <= 0) return res.status(400).json({success:false,error:'Positive maximum error in cm required'});
     const config = await db.prepare('SELECT * FROM tank_installations WHERE tank_id = ?').get(req.params.id);
     if (!config) return res.status(404).json({success:false,error:'Installation not found'});
-    const tests = await db.prepare('SELECT manual_depth_cm, depth_error_cm FROM tank_calibration_tests WHERE tank_id = ? ORDER BY created_at DESC LIMIT 100').all(req.params.id);
-    // Require distinct low, middle and high manual fill levels, all within tolerance.
-    const qualifying = tests.filter(t => Math.abs(Number(t.depth_error_cm)) <= tolerance);
-    if (![0.25,0.5,0.75].every((x,i) => qualifying.some(t => i===0 ? t.manual_depth_cm <= config.height_cm*x : i===1 ? t.manual_depth_cm > config.height_cm*0.25 && t.manual_depth_cm < config.height_cm*0.75 : t.manual_depth_cm >= config.height_cm*x))) return res.status(400).json({success:false,error:'Passing low, middle and high manual-depth tests are required'});
+    const tests = await db.prepare('SELECT manual_depth_cm, depth_error_cm FROM tank_calibration_tests WHERE tank_id = ? ORDER BY created_at DESC, id DESC LIMIT 100').all(req.params.id);
+    // Use the latest test in each band; old passing tests must not mask new failures.
+    const latest = [0,1,2].map(i => tests.find(t => i === 0 ? t.manual_depth_cm <= config.height_cm * 0.25 : i === 1 ? t.manual_depth_cm > config.height_cm * 0.25 && t.manual_depth_cm < config.height_cm * 0.75 : t.manual_depth_cm >= config.height_cm * 0.75));
+    if (!latest.every(t => t && Math.abs(Number(t.depth_error_cm)) <= tolerance)) return res.status(400).json({success:false,error:'Passing low, middle and high manual-depth tests are required'});
     const now = new Date().toISOString();
     await db.prepare("UPDATE tank_installations SET installation_status = 'CALIBRATED', calibration_date = ?, updated_at = ? WHERE tank_id = ?").run(now,now,req.params.id);
     res.json({success:true,data:{installation_status:'CALIBRATED',calibration_date:now}});
