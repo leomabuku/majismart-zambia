@@ -39,9 +39,9 @@ A top-mounted ultrasonic sensor estimates the distance to the water surface. Wit
 | Module / stakeholder | Problem and action | Evidence of success and limitation |
 |---|---|---|
 | Admin dashboard / operators | Bring tank readings, alerts and reports into one view. | Pilot: time to find a tank and its last reading. Existing dashboard contains legacy seed data and is not a certified live utility view. |
-| Installation / installer | Register a new tank, owner, station, coordinates, shape, sensor and device; inspect calculated capacity. | Pilot: percentage of installations with complete verified documentation. Existing-tank conversion and editing are incomplete; registration is not calibration. |
+| Installation / installer | Register a new tank, owner, station, coordinates, shape, sensor and device; inspect calculated capacity. | Pilot: percentage of installations with complete verified documentation. Conversion and editing of unconfigured legacy tanks are incomplete; registration is not calibration. |
 | Calibration / technician | Record manual depth and sensor distance at low, middle and high levels, review error and verify against chosen tolerance. | Depth error and passing checks. Human-entered tests can be wrong; no physical verification has been performed. |
-| Provisioning / administrator | Assign a device credential to the new tank; revoke or rotate through the API. Unknown devices cannot auto-register. | Rejected unauthorised packets and credential rotation exercise. Existing-tank device attachment and management UI remain incomplete; device keys require a security review. |
+| Provisioning / administrator | Assign a device credential to the new tank; revoke or rotate through the API. Unknown devices cannot auto-register. | Rejected unauthorised packets and credential rotation exercise. Device replacement is available for already configured tanks; conversion of unconfigured legacy tanks remains incomplete; device keys require a security review. |
 | Level monitoring / caretaker | Raw distance is converted using geometry; estimates and condition are recorded with receipt time. | Valid reading rate and manual comparison error. Values are estimates; sensor faults are rejected but not yet fully recorded as fault events. |
 | Realtime and offline / operator | Web refetches after an SSE invalidation; offline monitor marks stale devices. | End-to-end latency and offline-detection tests in a pilot. SSE is process-local with no replay; Android refresh is manual; physical and PostgreSQL paths are unverified. |
 | Community reports / resident | Submit category, title, description, location and optional evidence; follow own status. | Submissions with usable location; status visibility. Existing category set is narrower than the proposed taxonomy; community notices and richer impact fields are incomplete. |
@@ -115,7 +115,7 @@ Intended hosting: **Cloudflare Pages** for React/Vite; **Render** for Express; *
 37. **Does a tank sensor reduce losses automatically?** No. It can provide observations that may help an operator act; savings require measured operational changes and cannot be inferred from level alone.
 38. **How measure impact?** Compare agreed baseline and pilot outcomes: time to discover low storage, report completeness, response intervals, device uptime, calibration error and full cost. Use comparable sites and document confounders.
 39. **Biggest limitation?** No actual physical demonstration or PostgreSQL deployment has been validated in this environment; the real-world benefit and hardware accuracy remain unproven.
-40. **What next?** Verify physical calibration and PostgreSQL end to end, support existing-tank and device management, finish case/report provenance and run a privacy-reviewed pilot.
+40. **What next?** Verify physical calibration and PostgreSQL end to end, support conversion of unconfigured legacy tanks, finish case/report provenance and run a privacy-reviewed pilot.
 
 ## Business model and growth strategy
 
