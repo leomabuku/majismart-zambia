@@ -184,6 +184,7 @@ app.get('/api/tanks/:id', optionalAuth, StationController.getTankById);
 app.get('/api/installations', authenticateToken, requireAdmin, InstallationController.list);
 app.get('/api/installations/:id/calibration-tests', authenticateToken, requireAdmin, InstallationController.calibrationHistory);
 app.post('/api/installations', authenticateToken, requireAdmin, InstallationController.create);
+app.post('/api/installations/:id/device', authenticateToken, requireAdmin, InstallationController.replaceDevice);
 app.post('/api/installations/:id/calibration-tests', authenticateToken, requireAdmin, InstallationController.calibrationTest);
 app.post('/api/installations/:id/verify-calibration', authenticateToken, requireAdmin, InstallationController.verifyCalibration);
 app.put('/api/devices/:device_id/credential', authenticateToken, requireAdmin, InstallationController.deviceCredential);

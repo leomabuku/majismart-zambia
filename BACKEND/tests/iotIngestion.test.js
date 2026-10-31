@@ -246,3 +246,15 @@ test('calibration history is accessible to administrators only', async () => {
   assert.equal(history.status,200);
   assert.ok(Array.isArray((await history.json()).data.tests));
 });
+
+test('administrator can replace a device without allowing the old device to transmit', async () => {
+  const token = await loginAsAdmin();
+  const headers = {'Content-Type':'application/json',Authorization:`Bearer ${token}`};
+  const list = await (await fetch(`${BASE_URL}/api/installations`, {headers})).json();
+  const installation = list.data.find(i=>i.tank_id_code===tankCode);
+  const newDevice = `REPLACE_${suffix}`;
+  const result = await fetch(`${BASE_URL}/api/installations/${installation.id}/device`, {method:'POST',headers,body:JSON.stringify({device_id:newDevice,device_key:API_KEY})});
+  assert.equal(result.status,201);
+  assert.equal((await deviceRequest({device_id:deviceCode,tank_id:tankCode,distance_cm:15},'rotated-test-credential-123456789')).status,403);
+  assert.equal((await deviceRequest({device_id:newDevice,tank_id:tankCode,distance_cm:15})).status,201);
+});

@@ -76,6 +76,23 @@ export class InstallationController {
     await db.prepare("UPDATE tank_installations SET installation_status = 'CALIBRATED', calibration_date = ?, updated_at = ? WHERE tank_id = ?").run(now,now,req.params.id);
     res.json({success:true,data:{installation_status:'CALIBRATED',calibration_date:now}});
   }
+  // Replacing a device never changes the installation or rewrites its readings.
+  static async replaceDevice(req, res) {
+    try {
+      const { device_id, device_key } = req.body || {};
+      if (!/^[A-Za-z0-9_-]{1,50}$/.test(str(device_id)) || typeof device_key !== 'string' || device_key.length < 24 || device_key.length > 256) return res.status(400).json({success:false,error:'Valid device ID and credential of 24–256 characters are required'});
+      const installation = await db.prepare('SELECT tank_id FROM tank_installations WHERE tank_id = ?').get(req.params.id);
+      if (!installation) return res.status(404).json({success:false,error:'Configured installation not found'});
+      if (await db.prepare('SELECT id FROM monitoring_devices WHERE device_id_code = ?').get(str(device_id))) return res.status(409).json({success:false,error:'Device ID already exists; rotate its credential instead'});
+      await db.transaction(async tx => {
+        // Detach and revoke previous devices so a single live device is associated.
+        await tx.run("UPDATE monitoring_devices SET is_active = FALSE, status = 'OFFLINE', tank_id = NULL, updated_at = datetime('now') WHERE tank_id = ?", req.params.id);
+        await tx.run("INSERT INTO monitoring_devices (id,device_id_code,tank_id,api_key_hash,status) VALUES (?,?,?,?,'OFFLINE')", `dev-${crypto.randomUUID()}`, str(device_id), req.params.id, hashPassword(device_key));
+        await tx.run("UPDATE tanks SET current_status = 'OFFLINE', updated_at = datetime('now') WHERE id = ?", req.params.id);
+      });
+      res.status(201).json({success:true,data:{device_id:str(device_id),status:'OFFLINE'}});
+    } catch (error) { console.error('[Device replacement]', error.message); res.status(500).json({success:false,error:'Unable to replace device'}); }
+  }
   static async deviceCredential(req, res) {
     const { device_id } = req.params; const { device_key, revoke } = req.body || {};
     if (typeof revoke !== 'boolean' && (typeof device_key !== 'string' || device_key.length < 24 || device_key.length > 256)) return res.status(400).json({success:false,error:'Supply a new credential (24–256 characters) or revoke flag'});
