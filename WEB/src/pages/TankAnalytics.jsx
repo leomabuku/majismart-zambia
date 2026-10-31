@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Chart as ChartJS, 
   CategoryScale, 
@@ -11,6 +11,7 @@ import {
   Filler 
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
+import { telemetryState } from '../utils/telemetry';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { Wifi, Clock, ArrowLeft, Settings, Check, AlertCircle } from 'lucide-react';
@@ -28,12 +29,14 @@ ChartJS.register(
 
 export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
   const { isAdmin } = useAuth();
+  const requestVersion = useRef(0);
   const [tankId, setTankId] = useState(selectedTankId || 'TANK_001');
   const [tankData, setTankData] = useState(null);
   const [range, setRange] = useState('24h');
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
   const [formData, setFormData] = useState({});
+  const [loadError, setLoadError] = useState('');
   const [saveMsg, setSaveMsg] = useState('');
 
   useEffect(() => {
@@ -41,14 +44,21 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
   }, [selectedTankId]);
 
   const loadTank = () => {
+    const version = ++requestVersion.current;
     setLoading(true);
-    api.get(`/tanks/${tankId}`)
-      .then(res => {
+    Promise.all([api.get(`/tanks/${tankId}`), api.get(`/iot/history/${tankId}?range=${range}`)])
+      .then(([res, history]) => {
+        if (version !== requestVersion.current) return;
+        if (!res.success || !history.success) throw new Error(res.error || history.error || 'Unable to load telemetry');
+        setLoadError('');
+        res.data.recent_readings = history.data;
         if (res.success) {
           setTankData(res.data);
           setFormData({
             name: res.data.name,
             total_height_cm: res.data.total_height_cm,
+            usable_height_cm: res.data.usable_height_cm,
+            sensor_offset_cm: res.data.sensor_offset_cm,
             capacity_liters: res.data.capacity_liters,
             low_threshold_percent: res.data.low_threshold_percent,
             critical_threshold_percent: res.data.critical_threshold_percent,
@@ -56,12 +66,17 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
           });
         }
       })
-      .finally(() => setLoading(false));
+      .catch(err => { if (version === requestVersion.current) setLoadError(err.message); })
+      .finally(() => { if (version === requestVersion.current) setLoading(false); });
   };
 
   useEffect(() => {
+    let active = true;
     loadTank();
-  }, [tankId]);
+    const timer = setInterval(() => { if (active) loadTank(); }, 30000);
+    const off = api.subscribeRealtime(() => { if (active) loadTank(); });
+    return () => { active = false; requestVersion.current++; clearInterval(timer); off(); };
+  }, [tankId, range]);
 
   const handleSaveConfig = async (e) => {
     e.preventDefault();
@@ -78,10 +93,12 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
     return <div style={{ padding: '40px', textAlign: 'center' }}>Loading tank telemetry analytics...</div>;
   }
 
+  if (!tankData) return <div role="alert">{loadError || 'No tank data available'}</div>;
+  const quality = telemetryState(tankData);
   const readings = tankData?.recent_readings || [];
-  const percentValues = readings.map(r => r.water_level_percent);
-  const minPercent = percentValues.length ? Math.min(...percentValues) : 0;
-  const maxPercent = percentValues.length ? Math.max(...percentValues) : 0;
+  const percentValues = readings.filter(r => r.source === 'SENSOR' && r.status !== 'SENSOR_ERROR').map(r => Number(r.water_level_percent));
+  const minPercent = percentValues.length ? Math.min(...percentValues) : '—';
+  const maxPercent = percentValues.length ? Math.max(...percentValues) : '—';
   const avgPercent = percentValues.length ? Math.round(percentValues.reduce((a, b) => a + b, 0) / percentValues.length) : 0;
 
   // Chart data
@@ -89,8 +106,8 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
     labels: readings.map(r => new Date(r.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })),
     datasets: [
       {
-        label: 'Water Level (%)',
-        data: readings.map(r => r.water_level_percent),
+        label: 'Sensor readings (%) — calibration may be unverified',
+        data: readings.map(r => r.source === 'SENSOR' && r.status !== 'SENSOR_ERROR' ? r.water_level_percent : null),
         borderColor: '#0284C7',
         backgroundColor: 'rgba(2, 132, 199, 0.12)',
         fill: true,
@@ -99,9 +116,10 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
         pointHoverRadius: 6,
         borderWidth: 2
       },
+      { label: 'Simulated (%) — TEST ONLY', data: readings.map(r => r.simulated ? r.water_level_percent : null), borderColor: '#94A3B8', borderDash: [4, 4], fill: false },
       {
-        label: 'Low Threshold (25%)',
-        data: readings.map(() => tankData.low_threshold_percent || 25),
+        label: 'Low Threshold',
+        data: readings.map(() => tankData.low_threshold_percent ?? 25),
         borderColor: '#F59E0B',
         borderDash: [5, 5],
         borderWidth: 1.5,
@@ -109,8 +127,8 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
         pointRadius: 0
       },
       {
-        label: 'Critical Threshold (15%)',
-        data: readings.map(() => tankData.critical_threshold_percent || 15),
+        label: 'Critical Threshold',
+        data: readings.map(() => tankData.critical_threshold_percent ?? 15),
         borderColor: '#EF4444',
         borderDash: [5, 5],
         borderWidth: 1.5,
@@ -158,6 +176,8 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
 
   return (
     <div>
+      <p role="status">{quality.source} · {quality.connection} · Calibration: {quality.calibration}</p>
+      {loadError && <p role="alert">{loadError} — showing stored data.</p>}
       {/* Top action row */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -222,18 +242,26 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
               />
             </div>
             <div className="form-group">
-              <label className="form-label">Total Height (cm)</label>
+              <label className="form-label">Measured empty sensor distance (cm)</label>
               <input 
-                type="number"
+                type="number" step="0.01"
                 className="form-input" 
                 value={formData.total_height_cm || ''} 
                 onChange={e => setFormData({ ...formData, total_height_cm: parseFloat(e.target.value) })} 
               />
             </div>
             <div className="form-group">
+              <label className="form-label">Usable span: empty minus full distance (cm)</label>
+              <input type="number" step="0.01" className="form-input" value={formData.usable_height_cm ?? ''} onChange={e => setFormData({ ...formData, usable_height_cm: Number(e.target.value) })} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Sensor offset (cm; normally 0)</label>
+              <input type="number" step="0.01" className="form-input" value={formData.sensor_offset_cm ?? ''} onChange={e => setFormData({ ...formData, sensor_offset_cm: Number(e.target.value) })} />
+            </div>
+            <div className="form-group">
               <label className="form-label">Capacity (Liters)</label>
               <input 
-                type="number"
+                type="number" step="0.01"
                 className="form-input" 
                 value={formData.capacity_liters || ''} 
                 onChange={e => setFormData({ ...formData, capacity_liters: parseInt(e.target.value) })} 
@@ -242,7 +270,7 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
             <div className="form-group">
               <label className="form-label">Low Warning (%)</label>
               <input 
-                type="number"
+                type="number" step="0.01"
                 className="form-input" 
                 value={formData.low_threshold_percent || ''} 
                 onChange={e => setFormData({ ...formData, low_threshold_percent: parseFloat(e.target.value) })} 
@@ -251,7 +279,7 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
             <div className="form-group">
               <label className="form-label">Critical Threshold (%)</label>
               <input 
-                type="number"
+                type="number" step="0.01"
                 className="form-input" 
                 value={formData.critical_threshold_percent || ''} 
                 onChange={e => setFormData({ ...formData, critical_threshold_percent: parseFloat(e.target.value) })} 
@@ -260,7 +288,7 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
             <div className="form-group">
               <label className="form-label">Recovery Threshold (%)</label>
               <input 
-                type="number"
+                type="number" step="0.01"
                 className="form-input" 
                 value={formData.recovery_threshold_percent || ''} 
                 onChange={e => setFormData({ ...formData, recovery_threshold_percent: parseFloat(e.target.value) })} 
@@ -278,10 +306,10 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
         <div className="stat-card">
           <span style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>CURRENT WATER LEVEL</span>
           <div style={{ fontSize: '32px', fontWeight: 800, color: '#0284C7', marginTop: '6px' }}>
-            {tankData.current_water_percent}%
+            {quality.hasValue ? `${tankData.current_water_percent}%` : '—'}
           </div>
           <span style={{ fontSize: '13px', color: '#475569' }}>
-            Depth: {tankData.current_water_depth_cm} cm
+            Depth: {quality.hasValue ? tankData.current_water_depth_cm : '—'} cm
           </span>
         </div>
 
@@ -307,7 +335,7 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
             {tankData.device_id_code || 'ESP32_001'}
           </div>
           <span style={{ fontSize: '12px', color: tankData.device_status === 'ONLINE' ? '#10B981' : '#64748B', fontWeight: 600 }}>
-            ● {tankData.device_status || 'ONLINE'} (Last: {new Date(tankData.last_reading_at || Date.now()).toLocaleTimeString()})
+            ● {quality.connection} (Last: {new Date(tankData.last_reading_at || '').toLocaleTimeString()})
           </span>
         </div>
       </div>
@@ -358,7 +386,7 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
               <th>Sensor Distance (cm)</th>
               <th>Water Depth (cm)</th>
               <th>Water Level (%)</th>
-              <th>Calculated Status</th>
+              <th>Calculated Status / Source</th>
             </tr>
           </thead>
           <tbody>
@@ -370,7 +398,7 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
                 <td style={{ fontWeight: 700, color: '#0284C7' }}>{r.water_level_percent}%</td>
                 <td>
                   <span className={`badge ${r.status === 'CRITICAL' ? 'badge-critical' : r.status === 'LOW' ? 'badge-low' : 'badge-normal'}`}>
-                    {r.status}
+                    {r.status} / {r.source} / {r.calibration_verified ? 'Calibration verified' : 'Calibration NOT VERIFIED'}
                   </span>
                 </td>
               </tr>

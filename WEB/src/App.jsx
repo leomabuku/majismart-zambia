@@ -27,6 +27,7 @@ function MainApp() {
   // 'connecting' | 'live' | 'polling' — driven by the real SSE/polling fallback.
   const [connState, setConnState] = useState('connecting');
   const [lastSyncAt, setLastSyncAt] = useState(null);
+  const [backendError, setBackendError] = useState('');
 
   // Load baseline data from Shared Backend
   const reloadData = async () => {
@@ -39,6 +40,8 @@ function MainApp() {
         api.get('/reports')
       ]);
 
+      const failed = [sumRes, stRes, tkRes, altRes, repRes].find(r => !r.success);
+      setBackendError(failed?.error || '');
       if (sumRes.success) setSummary(sumRes.summary);
       if (stRes.success) setStations(stRes.data);
       if (tkRes.success) setTanks(tkRes.data);
@@ -60,7 +63,8 @@ function MainApp() {
     if (sumRes.success) setSummary(sumRes.summary);
     if (tkRes.success) setTanks(tkRes.data);
     if (altRes.success) setAlerts(altRes.data);
-    setLastSyncAt(new Date());
+    if (sumRes.success && tkRes.success && altRes.success) { setLastSyncAt(new Date()); setBackendError(''); }
+    else setBackendError('Monitoring API unavailable — readings may be stale');
   };
 
   useEffect(() => {
@@ -169,6 +173,7 @@ function MainApp() {
         )}
 
         <main className="content-area">
+          {backendError && <p role="alert">{backendError}</p>}
           {activeTab === 'dashboard' && (
             <Dashboard 
               summary={summary}
@@ -210,7 +215,7 @@ function MainApp() {
             />
           )}
 
-          {activeTab === 'simulator' && isAdmin && (
+          {activeTab === 'simulator' && isAdmin && import.meta.env.DEV && (
             <HardwareSimulator 
               onReadingSent={(data) => {
                 setLastTelemetry(data);

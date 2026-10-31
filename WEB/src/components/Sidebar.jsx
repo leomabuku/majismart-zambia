@@ -78,7 +78,7 @@ export default function Sidebar({ activeTab, setActiveTab, alertCount, reportCou
           {alertCount > 0 && <span className="nav-badge">{alertCount}</span>}
         </button>
 
-        {isAdmin && (
+        {isAdmin && import.meta.env.DEV && (
           <button
             className={`nav-item ${activeTab === 'simulator' ? 'active' : ''}`}
             onClick={() => setActiveTab('simulator')}
@@ -86,7 +86,7 @@ export default function Sidebar({ activeTab, setActiveTab, alertCount, reportCou
           >
             <Cpu size={18} color="#48CAE4" />
             <span style={{ color: '#48CAE4' }}>ESP32 Simulator</span>
-            <span className="badge-normal" style={{ fontSize: '10px', padding: '1px 5px', background: '#064E3B', color: '#6EE7B7' }}>LIVE</span>
+            <span className="badge-normal" style={{ fontSize: '10px', padding: '1px 5px', background: '#064E3B', color: '#6EE7B7' }}>TEST ONLY</span>
           </button>
         )}
 
