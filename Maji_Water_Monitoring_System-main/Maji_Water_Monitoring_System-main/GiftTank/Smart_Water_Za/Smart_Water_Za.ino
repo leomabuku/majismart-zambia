@@ -11,6 +11,29 @@
 #include <HTTPClient.h>
 #include <time.h>
 
+
+
+
+// ============================================
+// SUPABASE HTTPS ROOT CA CERTIFICATE
+// GOOGLE TRUST SERVICES - GTS ROOT R4
+// ============================================
+
+const char* ROOT_CA_CERT = R"EOF(
+-----BEGIN CERTIFICATE-----
+MIICCTCCAY6gAwIBAgINAgPlwGjvYxqccpBQUjAKBggqhkjOPQQDAzBHMQswCQYD
+VQQGEwJVUzEiMCAGA1UEChMZR29vZ2xlIFRydXN0IFNlcnZpY2VzIExMQzEUMBIG
+A1UEAxMLR1RTIFJvb3QgUjQwHhcNMTYwNjIyMDAwMDAwWhcNMzYwNjIyMDAwMDAw
+WjBHMQswCQYDVQQGEwJVUzEiMCAGA1UEChMZR29vZ2xlIFRydXN0IFNlcnZpY2Vz
+IExMQzEUMBIGA1UEAxMLR1RTIFJvb3QgUjQwdjAQBgcqhkjOPQIBBgUrgQQAIgNi
+AATzdHOnaItgrkO4NcWBMHtLSZ37wWHO5t5GvWvVYRg1rkDdc/eJkTBa6zzuhXyi
+QHY7qca4R9gq55KRanPpsXI5nymfopjTX15YhmUPoYRlBtHci8nHc8iMai/lxKvR
+HYqjQjBAMA4GA1UdDwEB/wQEAwIBhjAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQW
+BBSATNbrdP9JNqPV2Py1PsVq8JQdjDAKBggqhkjOPQQDAwNpADBmAjEA6ED/g94D
+9J+uHXqnLrmvT/aDHQ4thQEd0dlq7A/Cr8deVl5c1RxYIigL9zC2L7F8AjEA8GE8
+p/SgguMh1YQdc4acLa/KNJvxn7kjNuK8YAOdgLOaVsjh4rsUecrNIdSUtUlD
+-----END CERTIFICATE-----
+)EOF";
 // ============================================
 // WI-FI CONFIGURATION
 // ============================================
@@ -27,10 +50,10 @@ const char* WIFI_PASSWORD = "tresh123123";
 // Replace with your actual Supabase details
 
 const char* SUPABASE_URL =
-  "https://YOUR_PROJECT_REF.supabase.co/functions/v1/receive-reading";
+  "https://rdrwxahuxbgtugvacjpp.supabase.co/functions/v1/receive-reading";
 
 const char* DEVICE_API_KEY =
-  "YOUR_DEVICE_API_KEY";
+  "t6sHFGLmb_lviUHLke4zy2MIw1VDGFKCipBLhdE2BT0";
 
 // ============================================
 // SENSOR PINS
@@ -490,6 +513,13 @@ void setup() {
   // Add secureClient.setCACert(ROOT_CA_CERT)
   // with the appropriate certificate before
   // sending real API credentials.
+  // ============================================
+// CONFIGURE SECURE HTTPS CONNECTION
+// ============================================
+
+secureClient.setCACert(ROOT_CA_CERT);
+
+Serial.println("HTTPS certificate configured!");
 
   Serial.println();
   Serial.println("==============================");
