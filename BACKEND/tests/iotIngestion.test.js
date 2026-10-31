@@ -329,3 +329,12 @@ test('device reporting a sensor fault becomes offline when its heartbeat stops',
   assert.equal((await db.prepare('SELECT current_status FROM tanks WHERE tank_id_code = ?').get(tankCode)).current_status,'OFFLINE');
   assert.equal((await deviceRequest({device_id:dev,tank_id:tankCode,distance_cm:15},API_KEY)).status,201);
 });
+
+test('history includes SQLite-formatted readings inside the requested window', async () => {
+  const {db}=await import('../src/database/db.js');
+  const id=`history-window-${suffix}`;
+  const inside=new Date(Date.now()-23*3600000).toISOString().replace('T',' ').slice(0,19);
+  await db.prepare('INSERT INTO water_level_readings (id,device_id,tank_id,distance_cm,water_depth_cm,water_level_percent,status,created_at) VALUES (?,?,?,?,?,?,?,?)').run(id,deviceCode,tankCode,20,30,60,'NORMAL',inside);
+  const response=await (await fetch(`${BASE_URL}/api/iot/history/${tankCode}?range=24h`)).json();
+  assert.ok(response.data.some(r=>r.id===id));
+});

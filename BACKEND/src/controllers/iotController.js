@@ -1,4 +1,4 @@
-import { db, hashPassword } from '../database/db.js';
+import { db, hashPassword, databaseMode } from '../database/db.js';
 import { realtime } from '../services/realtimeService.js';
 import { AlertService } from '../services/alertService.js';
 import crypto from 'node:crypto';
@@ -83,11 +83,15 @@ export class IoTController {
       if (range === '30d') timeModifier = "-30 days";
 
       const since = new Date(Date.now() - ({ '-24 hours': 24, '-7 days': 168, '-30 days': 720 }[timeModifier] || 24) * 3600000).toISOString();
+      // SQLite contains both SQL datetime strings and ISO strings. Comparing
+      // them lexically omits some valid readings near the start of the window.
+      const sinceClause = databaseMode === 'supabase' ? 'created_at >= ?' : 'julianday(created_at) >= julianday(?)';
+      const orderColumn = databaseMode === 'supabase' ? 'created_at' : 'julianday(created_at)';
       const readings = await db.prepare(`
         SELECT id, device_id, tank_id, distance_cm, water_depth_cm, water_level_percent, status, created_at
         FROM water_level_readings
-        WHERE tank_id = ? AND created_at >= ?
-        ORDER BY created_at ASC
+        WHERE tank_id = ? AND ${sinceClause}
+        ORDER BY ${orderColumn} ASC
       `).all(tank_id, since);
 
       return res.json({ success: true, count: readings.length, data: readings });

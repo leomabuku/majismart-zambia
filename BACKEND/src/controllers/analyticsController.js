@@ -1,4 +1,5 @@
 import { db } from '../database/db.js';
+import { parseStoredTimestamp } from '../lib/timestamps.js';
 
 // All filters select the submission cohort, not events occurring in the interval.
 export class AnalyticsController {
@@ -51,7 +52,7 @@ export class AnalyticsController {
       ]);
       const total = statuses.reduce((n, row) => n + Number(row.count), 0);
       const counts = Object.fromEntries(statuses.map(row => [row.label, Number(row.count)]));
-      const hours = durations.map(row => (new Date(row.resolved_at).getTime() - new Date(row.created_at).getTime()) / 3600000).filter(n => Number.isFinite(n) && n >= 0).sort((a, b) => a - b);
+      const hours = durations.map(row => (parseStoredTimestamp(row.resolved_at) - parseStoredTimestamp(row.created_at)) / 3600000).filter(n => Number.isFinite(n) && n >= 0).sort((a, b) => a - b);
       const median = hours.length ? (hours[Math.floor((hours.length - 1) / 2)] + hours[Math.floor(hours.length / 2)]) / 2 : null;
       const eligible = total - (counts.REJECTED || 0);
       return res.json({ success: true, data: { total, statuses: counts, categories, locations, days, months, stations, classifications, severities, outcomes, resolution: {
