@@ -19,6 +19,7 @@ import { initDatabase, db, databaseMode, describeDatabaseTarget, databaseUrlWarn
 import { realtime } from './services/realtimeService.js';
 import { DeviceMonitorService } from './services/deviceMonitorService.js';
 import { DemoTelemetryService } from './services/demoTelemetryService.js';
+import { isGoogleAuthConfigured } from './services/googleAuthService.js';
 import { IoTController } from './controllers/iotController.js';
 import { AuthController } from './controllers/authController.js';
 import { StationController } from './controllers/stationController.js';
@@ -95,7 +96,10 @@ app.get('/api/health', async (req, res) => {
     version: '1.0.0',
     timestamp: new Date().toISOString(),
     sse_clients: realtime.getClientCount(),
-    db_mode: databaseMode
+    db_mode: databaseMode,
+    // Lets an operator confirm the Google OAuth client id reached this instance
+    // without reading the env var. Never exposes the value itself.
+    google_signin: isGoogleAuthConfigured()
     });
   } catch {
     res.status(503).json({ status: 'DEGRADED', system: 'MajiSmart Zambia Core API', error: 'Database unavailable' });
