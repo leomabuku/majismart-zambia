@@ -22,6 +22,7 @@ import { DemoTelemetryService } from './services/demoTelemetryService.js';
 import { isGoogleAuthConfigured } from './services/googleAuthService.js';
 import { IoTController } from './controllers/iotController.js';
 import { AuthController } from './controllers/authController.js';
+import { UserController } from './controllers/userController.js';
 import { StationController } from './controllers/stationController.js';
 import { ReportController } from './controllers/reportController.js';
 import { AlertController } from './controllers/alertController.js';
@@ -77,7 +78,7 @@ const configuredOrigins = (process.env.CORS_ORIGINS || '*')
 // Enable CORS for web and mobile clients
 app.use(cors({
   origin: configuredOrigins.includes('*') ? '*' : configuredOrigins,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key']
 }));
 
@@ -162,6 +163,10 @@ app.post('/api/auth/google', AuthController.googleLogin);
 app.post('/api/auth/logout', AuthController.logout);
 app.post('/api/auth/register', AuthController.register);
 app.get('/api/auth/me', authenticateToken, AuthController.getProfile);
+
+// Admin-only user directory and role management (Settings > Team & Roles).
+app.get('/api/users', authenticateToken, requireAdmin, UserController.listUsers);
+app.patch('/api/users/:id/role', authenticateToken, requireAdmin, UserController.updateRole);
 
 // ==========================================
 // 3. MONITORING STATIONS & TANKS

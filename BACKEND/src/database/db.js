@@ -345,6 +345,8 @@ export async function initDatabase() {
       location_name TEXT NOT NULL,
       latitude REAL,
       longitude REAL,
+      location_accuracy_m REAL,
+      location_source TEXT,
       station_id TEXT REFERENCES monitoring_stations(id) ON DELETE SET NULL,
       image_url TEXT,
       status TEXT NOT NULL DEFAULT 'SUBMITTED' CHECK(status IN ('SUBMITTED', 'ACKNOWLEDGED', 'IN_PROGRESS', 'RESOLVED', 'REJECTED')),
@@ -376,8 +378,25 @@ export async function initDatabase() {
   // an existing SQLite file, so older dev databases are patched here.
   ensureSqliteProfileColumns();
 
+  ensureSqliteReportColumns();
+
   // Seed default data if profiles table is empty
   seedDefaultData();
+}
+
+// Adds the geolocation columns to a pre-existing SQLite database.
+function ensureSqliteReportColumns() {
+  const existing = new Set(sqlite.prepare('PRAGMA table_info(community_reports)').all().map((c) => c.name));
+  const additions = [
+    ['location_accuracy_m', 'REAL'],
+    ['location_source', 'TEXT']
+  ];
+  for (const [name, type] of additions) {
+    if (!existing.has(name)) {
+      sqlite.exec(`ALTER TABLE community_reports ADD COLUMN ${name} ${type}`);
+      console.log(`[DB] Added community_reports.${name} column`);
+    }
+  }
 }
 
 // Adds the Google sign-in columns to a pre-existing SQLite database.
