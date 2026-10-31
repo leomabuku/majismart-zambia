@@ -79,6 +79,14 @@ curl -s https://majismart-api.onrender.com/api/tanks | head -c 300
 
 You should see 5 stations / 5 tanks / 5 devices and `TANK_001` at 69%.
 
+### 1.4 Demo telemetry (why the dashboard is not empty)
+
+`render.yaml` sets `DEMO_MODE=true`. With no hardware attached, every device would be marked OFFLINE one timeout window after the seed, and each one would raise a `DEVICE_OFFLINE` alert — a correct behaviour that makes a public demo look broken.
+
+`DEMO_MODE` (see `BACKEND/src/services/demoTelemetryService.js`) emits a mean-reverting random-walk reading for each seeded tank every `DEMO_INTERVAL_SECONDS` (90 s) **through the real ingestion pipeline**, so device auth, threshold alerts, tank status, charts and the SSE stream all behave as they would with sensors.
+
+Before connecting real sensors: set `DEMO_MODE=false` and set `DEVICE_OFFLINE_TIMEOUT_SECONDS` to 2–3× your gateway reporting interval (currently 300 s).
+
 > The Render URL is `https://<service-name>.onrender.com`. `render.yaml` asks for `majismart-api`; if the name is taken Render appends a suffix — use the exact URL it shows and put it in `VITE_API_BASE_URL` (step 2) and `RENDER_API_URL` (step 4).
 
 ---
@@ -223,6 +231,7 @@ In the browser: dashboard loads, header says **Realtime Connected**, the new rea
 | Browser console: CORS blocked | `CORS_ORIGINS` missing the exact Pages origin (scheme + host, no trailing slash) | Update the Render env var and redeploy. |
 | Browser console: SSE `403 Origin not allowed` | Same as above; the stream is origin-checked now | Same fix. |
 | Login fails with the seeded admin | The account was seeded earlier with a different `SEED_ADMIN_PASSWORD`; `ON CONFLICT DO NOTHING` keeps the old hash | Reset it in Supabase SQL editor:<br>`UPDATE public.profiles SET password_hash = encode(digest('<new-password>_majismart_salt','sha256'),'hex') WHERE email='admin@majismart.zm';` |
+| Every tank shows OFFLINE and `DEVICE_OFFLINE` alerts appear ~1 min after deploy | No hardware is reporting (expected), or an older build compared SQLite and ISO timestamps as text and marked fresh devices stale | Keep `DEMO_MODE=true` for a hardware-less demo, or disable it and raise `DEVICE_OFFLINE_TIMEOUT_SECONDS` once sensors report. The timestamp comparison is fixed in the current code. |
 | Dashboard loads but everything is empty | Seed ran against a stale database, or you are hitting SQLite | Check `/api/health` `db_mode`, then inspect `select count(*) from public.tanks;` in Supabase. |
 | App shows 10 s timeouts | Old APK with default OkHttp timeouts | Rebuild with the current `MajiSmartApiService`. |
 | Android "Cleartext HTTP traffic not permitted" | You set an `http://` API URL | Use HTTPS; only the three local hosts allow cleartext. |

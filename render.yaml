@@ -48,6 +48,14 @@ services:
       - key: CORS_ORIGINS
         sync: false
       - key: DEVICE_OFFLINE_TIMEOUT_SECONDS
-        value: '60'
+        value: '300'
       - key: SSE_HEARTBEAT_MS
         value: '25000'
+      # No hardware is attached to this demo deployment, so without synthetic telemetry
+      # every tank flips to OFFLINE within one timeout window. Set DEMO_MODE=false (and
+      # tune DEVICE_OFFLINE_TIMEOUT_SECONDS to your gateway reporting interval) before
+      # connecting real sensors.
+      - key: DEMO_MODE
+        value: 'true'
+      - key: DEMO_INTERVAL_SECONDS
+        value: '90'

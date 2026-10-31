@@ -434,10 +434,10 @@ async function seedPostgresData() {
     ];
     for (const t of tanks) {
       await tx.run(`
-        INSERT INTO tanks (id, tank_id_code, station_id, name, total_height_cm, usable_height_cm, capacity_liters,
-          low_threshold_percent, critical_threshold_percent, recovery_threshold_percent,
+        INSERT INTO tanks (id, tank_id_code, station_id, name, total_height_cm, usable_height_cm, sensor_offset_cm,
+          capacity_liters, low_threshold_percent, critical_threshold_percent, recovery_threshold_percent,
           current_water_depth_cm, current_water_percent, current_status, last_reading_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+        VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, NOW())
         ON CONFLICT (tank_id_code) DO NOTHING
       `, ...t);
     }

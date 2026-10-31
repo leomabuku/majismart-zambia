@@ -1,4 +1,4 @@
-import { db } from '../database/db.js';
+import { db, databaseMode } from '../database/db.js';
 import { realtime } from './realtimeService.js';
 import crypto from 'node:crypto';
 
@@ -26,7 +26,14 @@ export class DeviceMonitorService {
 
   static async checkOfflineDevices() {
     try {
-      const timeoutThreshold = new Date(Date.now() - this.timeoutSeconds * 1000).toISOString();
+      // SQLite stores `datetime('now')` as "YYYY-MM-DD HH:MM:SS" while JavaScript produces
+      // "YYYY-MM-DDTHH:MM:SS.sssZ". Compared as text the space sorts before "T", so every
+      // device looked stale on its first check and was incorrectly marked OFFLINE.
+      // Match the storage format per backend; Postgres parses the ISO form unambiguously.
+      const thresholdDate = new Date(Date.now() - this.timeoutSeconds * 1000);
+      const timeoutThreshold = databaseMode === 'supabase'
+        ? thresholdDate.toISOString()
+        : thresholdDate.toISOString().replace('T', ' ').slice(0, 19);
 
       // Find devices that are marked ONLINE but haven't sent a reading recently
       const staleDevices = await db.prepare(`

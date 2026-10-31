@@ -18,6 +18,7 @@ if (process.env.NODE_ENV === 'production') {
 import { initDatabase, db, databaseMode, describeDatabaseTarget, databaseUrlWarnings } from './database/db.js';
 import { realtime } from './services/realtimeService.js';
 import { DeviceMonitorService } from './services/deviceMonitorService.js';
+import { DemoTelemetryService } from './services/demoTelemetryService.js';
 import { IoTController } from './controllers/iotController.js';
 import { AuthController } from './controllers/authController.js';
 import { StationController } from './controllers/stationController.js';
@@ -54,6 +55,9 @@ try {
 
 // Start Background Device Heartbeat Monitor
 DeviceMonitorService.start();
+
+// Optional synthetic telemetry (DEMO_MODE=true) - keeps a hardware-less demo alive.
+DemoTelemetryService.start();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -213,6 +217,7 @@ const server = app.listen(PORT, () => {
 
 export function shutdownServer() {
   DeviceMonitorService.stop();
+  DemoTelemetryService.stop();
   // SSE streams never finish on their own; close them so server.close() can resolve.
   realtime.closeAll();
   return new Promise((resolve, reject) => {
