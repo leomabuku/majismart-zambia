@@ -143,7 +143,7 @@ export class StationController {
       const [visibility, viewer] = visibleTank(req);
       const tanks = await db.prepare(`
         SELECT
-          t.*, i.current_volume_l, i.current_condition, i.installation_status,
+          t.*, i.current_volume_l, i.current_condition, i.installation_status, i.latitude, i.longitude,
           s.name as station_name,
           s.code as station_code,
           s.community as station_community,
@@ -176,7 +176,7 @@ export class StationController {
       const [visibility, viewer] = visibleTank(req);
       const tank = await db.prepare(`
         SELECT
-          t.*, i.current_volume_l, i.current_condition, i.installation_status,
+          t.*, i.current_volume_l, i.current_condition, i.installation_status, i.latitude, i.longitude,
           s.name as station_name,
           s.code as station_code,
           s.community as station_community,
