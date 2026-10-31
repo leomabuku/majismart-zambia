@@ -6,6 +6,20 @@ import { classifyCondition } from '../lib/tankCondition.js';
 const str = x => typeof x === 'string' ? x.trim() : '';
 const nullable = x => x === '' || x == null ? null : x;
 export class InstallationController {
+  static async list(req, res) {
+    try {
+      const data = await db.prepare(`SELECT t.id, t.tank_id_code, t.name, i.installation_status, i.calibration_date FROM tanks t JOIN tank_installations i ON i.tank_id = t.id ORDER BY t.name LIMIT 500`).all();
+      res.json({success:true,data});
+    } catch (error) { console.error('[Installation list]', error.message); res.status(500).json({success:false,error:'Unable to load installations'}); }
+  }
+  static async calibrationHistory(req, res) {
+    try {
+      const installation = await db.prepare('SELECT installation_status, calibration_date FROM tank_installations WHERE tank_id = ?').get(req.params.id);
+      if (!installation) return res.status(404).json({success:false,error:'Installation not found'});
+      const tests = await db.prepare(`SELECT t.id, t.raw_distance_cm, t.manual_depth_cm, t.calculated_depth_cm, t.depth_error_cm, t.created_at, p.full_name AS actor_name FROM tank_calibration_tests t LEFT JOIN profiles p ON p.id = t.actor_id WHERE t.tank_id = ? ORDER BY t.created_at DESC, t.id DESC LIMIT 100`).all(req.params.id);
+      res.json({success:true,data:{...installation,tests}});
+    } catch (error) { console.error('[Calibration history]', error.message); res.status(500).json({success:false,error:'Unable to load calibration history'}); }
+  }
   static async create(req, res) {
     const b = req.body || {};
     try {

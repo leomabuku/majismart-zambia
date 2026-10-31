@@ -235,3 +235,14 @@ test('accepted telemetry persists and triggers a privacy-safe SSE invalidation',
     assert.ok(history.data.some(r=>r.id===payload.reading_id));
   } finally { controller.abort(); }
 });
+
+test('calibration history is accessible to administrators only', async () => {
+  const token = await loginAsAdmin();
+  assert.equal((await fetch(`${BASE_URL}/api/installations`)).status, 401);
+  const list = await (await fetch(`${BASE_URL}/api/installations`, {headers:{Authorization:`Bearer ${token}`}})).json();
+  const installation = list.data.find(i => i.tank_id_code === tankCode);
+  assert.ok(installation);
+  const history = await fetch(`${BASE_URL}/api/installations/${installation.id}/calibration-tests`, {headers:{Authorization:`Bearer ${token}`}});
+  assert.equal(history.status,200);
+  assert.ok(Array.isArray((await history.json()).data.tests));
+});
