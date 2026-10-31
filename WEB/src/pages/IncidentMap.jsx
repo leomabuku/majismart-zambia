@@ -48,8 +48,8 @@ export default function IncidentMap({ stations, tanks, reports }) {
 
       // Plot only valid stored coordinates; the location itself is not verified. Never substitute a station pin.
       if (showStations && tanks) tanks.filter(hasPin).forEach(tank => {
-        const status = tank.device_status === 'OFFLINE' ? 'OFFLINE' : (tank.current_condition || tank.current_status || 'UNKNOWN');
-        const marker = L.circleMarker([Number(tank.latitude), Number(tank.longitude)], {radius: 9, color: status === 'CRITICAL' ? '#dc2626' : status === 'LOW' || status === 'WARNING' ? '#d97706' : status === 'OFFLINE' ? '#64748b' : '#0284c7'});
+        const status = tank.device_status === 'OFFLINE' ? 'OFFLINE' : tank.device_status === 'ERROR' || tank.current_status === 'SENSOR_ERROR' ? 'SENSOR_ERROR' : (tank.current_condition || tank.current_status || 'UNKNOWN');
+        const marker = L.circleMarker([Number(tank.latitude), Number(tank.longitude)], {radius: 9, color: status === 'CRITICAL' ? '#dc2626' : status === 'LOW' || status === 'WARNING' ? '#d97706' : status === 'OFFLINE' || status === 'SENSOR_ERROR' ? '#64748b' : '#0284c7'});
         const level = tank.last_reading_at && Number.isFinite(Number(tank.current_water_percent)) ? `${Number(tank.current_water_percent).toFixed(1)}% (last known)` : 'No reading';
         marker.bindPopup(`<strong>${escapeHtml(tank.name)}</strong><br>Tank: ${escapeHtml(tank.tank_id_code)}<br>Level: ${escapeHtml(level)}<br>Condition: ${escapeHtml(status)}<br>Last reading: ${escapeHtml(tank.last_reading_at || 'Never')}`);
         marker.addTo(layer);

@@ -9,10 +9,13 @@ export class IoTController {
   static async ingestReading(req, res) {
     try {
       const payload = req.body || {};
-      const { device_id, tank_id, distance_cm, measured_at } = payload;
+      const { device_id, tank_id, distance_cm, measured_at, sensor_fault } = payload;
       const key = req.headers['x-api-key'] || (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
       if (!key || typeof key !== 'string') return res.status(401).json({success:false,error:'Device credential required'});
-      if (typeof device_id !== 'string' || typeof tank_id !== 'string' || !device_id || !tank_id || typeof distance_cm !== 'number' || !Number.isFinite(distance_cm)) return res.status(400).json({success:false,error:'device_id, tank_id and finite distance_cm are required'});
+      if (typeof device_id !== 'string' || typeof tank_id !== 'string' || !device_id || !tank_id) return res.status(400).json({success:false,error:'device_id and tank_id are required'});
+      if (sensor_fault != null) {
+        if (!['TIMEOUT', 'INVALID_SAMPLE'].includes(sensor_fault) || distance_cm != null) return res.status(400).json({success:false,error:'Invalid sensor fault payload'});
+      } else if (typeof distance_cm !== 'number' || !Number.isFinite(distance_cm)) return res.status(400).json({success:false,error:'A finite distance_cm is required'});
       if (measured_at != null && (typeof measured_at !== 'string' || !/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(measured_at) || !Number.isFinite(Date.parse(measured_at)) || Date.parse(measured_at) > Date.now() + 300000 || Date.parse(measured_at) < Date.now() - 300000)) return res.status(400).json({success:false,error:'Invalid or stale measurement timestamp'});
       const device = await db.prepare('SELECT * FROM monitoring_devices WHERE device_id_code = ?').get(device_id);
       const digest = hashPassword(key);
@@ -23,6 +26,22 @@ export class IoTController {
       const config = await db.prepare('SELECT * FROM tank_installations WHERE tank_id = ?').get(tank.id);
       if (!config) return res.status(422).json({success:false,error:'Tank geometry and calibration must be registered first'});
       if (req.headers['x-simulation'] === 'true' && config.provenance !== 'SIMULATED' && config.provenance !== 'TEST') return res.status(403).json({success:false,error:'Simulation requires a SIMULATED or TEST installation'});
+      if (sensor_fault != null) {
+        const faultId = 'fault-' + crypto.randomUUID();
+        const now = new Date().toISOString();
+        await db.transaction(async tx => {
+          await tx.run('INSERT INTO sensor_fault_events (id,device_id,tank_id,fault_code,measured_at,provenance,created_at) VALUES (?,?,?,?,?,?,?)', faultId,device.id,tank.id,sensor_fault,measured_at || null,config.provenance,now);
+          await tx.run("UPDATE monitoring_devices SET last_seen_at = datetime('now'), status = 'ERROR', updated_at = datetime('now') WHERE id = ?",device.id);
+          // Preserve last known level and last_reading_at: a fault is not a water reading.
+          await tx.run("UPDATE tanks SET current_status = 'SENSOR_ERROR', updated_at = datetime('now') WHERE id = ?",tank.id);
+          await tx.run("UPDATE water_alerts SET status = 'RESOLVED', resolved_at = datetime('now') WHERE tank_id = ? AND alert_type = 'DEVICE_OFFLINE' AND status IN ('ACTIVE','ACKNOWLEDGED')",tank.id);
+          const existing = await tx.get("SELECT id FROM water_alerts WHERE tank_id = ? AND alert_type = 'SENSOR_ERROR' AND status IN ('ACTIVE','ACKNOWLEDGED')",tank.id);
+          if (!existing) await tx.run("INSERT INTO water_alerts (id,tank_id,device_id,alert_type,severity,title,message,status) VALUES (?,?,?,'SENSOR_ERROR','WARNING',?,?,'ACTIVE')", 'alt-'+crypto.randomUUID(),tank.id,device_id,`Sensor fault on ${tank.name}`,`The device reported a sensor fault (${sensor_fault}). Inspect the sensor; the last level may be stale.`);
+        });
+        realtime.broadcast('DEVICE_STATUS_CHANGED', {});
+        realtime.broadcast('NEW_ALERT', {});
+        return res.status(202).json({success:true,message:'Sensor fault recorded; no water-level reading was created',data:{fault_id:faultId,condition:'SENSOR_ERROR',recorded_at:now}});
+      }
       if (distance_cm <= 0 || distance_cm < Number(config.dead_zone_cm)) return res.status(400).json({success:false,error:'Distance falls inside the sensor dead zone'});
       let reading;
       try { reading = calculateMeasurement(config, distance_cm + Number(config.measurement_offset_cm)); }

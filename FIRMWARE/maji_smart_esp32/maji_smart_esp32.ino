@@ -80,13 +80,14 @@ void loop() {
 
     if (distance_cm < 0 || distance_cm > 400.0) {
       Serial.println("[ERROR] Sensor reading timeout or out of range");
-      setLEDs(false, false, true); // Flash red on sensor fault
+      setLEDs(false, false, true);
+      sendTelemetry(0, true); // Report a fault; never send a fabricated level.
       return;
     }
 
     // The backend alone interprets distance using the installed calibration.
     Serial.printf("[SENSOR] Median distance: %.2f cm\n", distance_cm);
-    sendTelemetry(distance_cm);
+    sendTelemetry(distance_cm, false);
 
   }
 }
@@ -130,7 +131,7 @@ float measureDistance() {
 // ------------------------------------------------------------------------------
 // SEND TELEMETRY IN PHOTO CONTRACT FORMAT
 // ------------------------------------------------------------------------------
-void sendTelemetry(float distance_cm) {
+void sendTelemetry(float distance_cm, bool sensorFault) {
   if (WiFi.status() != WL_CONNECTED) {
     Serial.println("[HTTP] Wi-Fi not connected. Reading dropped; will sample again on the next interval.");
     return;
@@ -152,7 +153,8 @@ void sendTelemetry(float distance_cm) {
   StaticJsonDocument<256> doc;
   doc["device_id"]           = DEVICE_ID;
   doc["tank_id"]             = TANK_ID;
-  doc["distance_cm"]          = serialized(String(distance_cm, 1));
+  if (sensorFault) doc["sensor_fault"] = "INVALID_SAMPLE";
+  else doc["distance_cm"] = serialized(String(distance_cm, 1));
 
   String requestBody;
   serializeJson(doc, requestBody);

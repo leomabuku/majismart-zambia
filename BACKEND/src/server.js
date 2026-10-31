@@ -193,6 +193,7 @@ app.put('/api/tanks/:id', authenticateToken, requireAdmin, StationController.upd
 // ==========================================
 // 4. COMMUNITY REPORTS
 // ==========================================
+app.get('/api/analytics/sensor-faults', authenticateToken, requireAdmin, AnalyticsController.sensorFaults);
 app.get('/api/analytics/telemetry', authenticateToken, requireAdmin, AnalyticsController.telemetry);
 app.get('/api/analytics/reports', authenticateToken, requireAdmin, AnalyticsController.reports);
 app.get('/api/my/reports', authenticateToken, (req, res) => { req.query.reporter_id = req.user.id; return ReportController.getAllReports(req, res); });

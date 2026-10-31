@@ -2,6 +2,18 @@ import { db } from '../database/db.js';
 
 // All filters select the submission cohort, not events occurring in the interval.
 export class AnalyticsController {
+  static async sensorFaults(req, res) {
+    try {
+      const {from, to} = req.query;
+      for (const date of [from,to]) if (date && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(Date.parse(date)) || new Date(date).toISOString().slice(0,10) !== date)) return res.status(400).json({success:false,error:'Invalid date'});
+      if (from && to && from > to) return res.status(400).json({success:false,error:'Invalid date range'});
+      let where = " WHERE f.provenance = 'OPERATIONAL'";
+      const params=[];
+      for (const [value,clause] of [[from,'DATE(f.created_at) >= ?'],[to,'DATE(f.created_at) <= ?']]) if(value) { where += ` AND ${clause}`; params.push(value); }
+      const data = await db.prepare(`SELECT t.tank_id_code AS tank_id, f.fault_code, COUNT(*) AS observations FROM sensor_fault_events f JOIN tanks t ON t.id = f.tank_id ${where} GROUP BY t.tank_id_code,f.fault_code ORDER BY t.tank_id_code,f.fault_code`).all(...params);
+      res.json({success:true,data});
+    } catch (err) { console.error('[Sensor fault analytics]',err.message); res.status(500).json({success:false,error:'Unable to load sensor fault analytics'}); }
+  }
   static async telemetry(req, res) {
     try {
       const {from,to,tank} = req.query;

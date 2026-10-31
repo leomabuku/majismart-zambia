@@ -15,7 +15,7 @@ fun HomeScreen(tanks: List<Tank>, isLoading: Boolean, onRefresh: () -> Unit, onN
     LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Text("Your water", fontSize = 24.sp)
-            Text("The last known level may be stale if your device is offline.")
+            Text("The last known level may be stale if the device is offline or has a sensor error.")
             Row { TextButton(onClick = onRefresh) { Text("Refresh") }; TextButton(onClick = onNavigateToReport) { Text("Report a problem") } }
             if (isLoading) CircularProgressIndicator()
             if (!isLoading && tanks.isEmpty()) Text("No tank is assigned to your account. Contact your administrator.")
@@ -28,7 +28,7 @@ fun HomeScreen(tanks: List<Tank>, isLoading: Boolean, onRefresh: () -> Unit, onN
                         Text("Last known level: ${tank.currentWaterPercent}%")
                         tank.currentVolumeL?.let { Text("Estimated volume: %.1f L".format(it)) }
                     }
-                    Text("Condition: ${if (tank.deviceStatus == "OFFLINE") "DEVICE OFFLINE" else tank.currentCondition ?: tank.currentStatus}")
+                    Text("Condition: ${if (tank.deviceStatus == "OFFLINE") "DEVICE OFFLINE" else if (tank.deviceStatus == "ERROR" || tank.currentStatus == "SENSOR_ERROR") "SENSOR ERROR" else tank.currentCondition ?: tank.currentStatus}")
                     Text("Device: ${tank.deviceStatus ?: "UNKNOWN"}")
                     Text("Last update: ${tank.lastReadingAt ?: "Never"}")
                     if (tank.installationStatus != "CALIBRATED") Text("Calibration not verified; estimates may be inaccurate.")

@@ -406,6 +406,7 @@ export async function initDatabase() {
   sqlite.exec(fs.readFileSync(path.resolve(__dirname, '../../database/migrations/003_report_case.sql'), 'utf8'));
 
   sqlite.exec(fs.readFileSync(path.resolve(__dirname, '../../database/migrations/004_calibration.sql'), 'utf8'));
+  sqlite.exec(fs.readFileSync(path.resolve(__dirname, '../../database/migrations/005_sensor_faults.sql'), 'utf8'));
 
   // Seed default data if profiles table is empty
   seedDefaultData();

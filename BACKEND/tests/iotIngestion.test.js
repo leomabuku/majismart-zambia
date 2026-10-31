@@ -286,3 +286,46 @@ test('administrator can configure a legacy tank without overwriting its identity
   assert.equal((await deviceRequest({device_id:oldDevice,tank_id:code,distance_cm:15})).status,403);
   assert.equal((await deviceRequest({device_id:nextDevice,tank_id:code,distance_cm:15})).status,201);
 });
+
+test('device sensor faults are authenticated, persisted separately and clear on recovery', async () => {
+  const { db } = await import('../src/database/db.js');
+  const tank = await db.prepare('SELECT id, last_reading_at, current_water_percent FROM tanks WHERE tank_id_code = ?').get(tankCode);
+  const dev = `REPLACE_${suffix}`;
+  const invalid = await deviceRequest({device_id:dev,tank_id:tankCode,sensor_fault:'TIMEOUT'},'wrong-key');
+  assert.equal(invalid.status,401);
+  const ambiguous = await deviceRequest({device_id:dev,tank_id:tankCode,sensor_fault:'TIMEOUT',distance_cm:15},API_KEY);
+  assert.equal(ambiguous.status,400);
+  const fault = await deviceRequest({device_id:dev,tank_id:tankCode,sensor_fault:'TIMEOUT'},API_KEY);
+  assert.equal(fault.status,202); const faultBody = await fault.json();
+  const event = await db.prepare('SELECT fault_code, provenance FROM sensor_fault_events WHERE id = ?').get(faultBody.data.fault_id);
+  assert.equal(event.fault_code,'TIMEOUT'); assert.equal(event.provenance,'TEST');
+  const after = await db.prepare('SELECT last_reading_at,current_water_percent,current_status FROM tanks WHERE id = ?').get(tank.id);
+  assert.equal(after.current_status,'SENSOR_ERROR'); assert.equal(after.last_reading_at,tank.last_reading_at); assert.equal(after.current_water_percent,tank.current_water_percent);
+  const alerts=await db.prepare("SELECT id FROM water_alerts WHERE tank_id = ? AND alert_type = 'SENSOR_ERROR' AND status = 'ACTIVE'").all(tank.id);
+  assert.equal(alerts.length,1);
+  assert.equal((await deviceRequest({device_id:dev,tank_id:tankCode,sensor_fault:'TIMEOUT'},API_KEY)).status,202);
+  assert.equal((await db.prepare("SELECT id FROM water_alerts WHERE tank_id = ? AND alert_type = 'SENSOR_ERROR' AND status = 'ACTIVE'").all(tank.id)).length,1);
+  assert.equal((await deviceRequest({device_id:dev,tank_id:tankCode,distance_cm:15},API_KEY)).status,201);
+  assert.equal((await db.prepare("SELECT id FROM water_alerts WHERE tank_id = ? AND alert_type = 'SENSOR_ERROR' AND status = 'ACTIVE'").all(tank.id)).length,0);
+});
+
+test('sensor fault analytics is admin-only and excludes test provenance', async () => {
+  const token = await loginAsAdmin();
+  const unauthorized=await fetch(`${BASE_URL}/api/analytics/sensor-faults`);
+  assert.equal(unauthorized.status,401);
+  const response=await fetch(`${BASE_URL}/api/analytics/sensor-faults`,{headers:{Authorization:`Bearer ${token}`}});
+  assert.equal(response.status,200);
+  assert.ok(!(await response.json()).data.some(r=>r.tank_id===tankCode));
+});
+
+test('device reporting a sensor fault becomes offline when its heartbeat stops', async () => {
+  const {db} = await import('../src/database/db.js');
+  const {DeviceMonitorService} = await import('../src/services/deviceMonitorService.js');
+  const dev=`REPLACE_${suffix}`;
+  assert.equal((await deviceRequest({device_id:dev,tank_id:tankCode,sensor_fault:'INVALID_SAMPLE'},API_KEY)).status,202);
+  await db.prepare("UPDATE monitoring_devices SET last_seen_at = ? WHERE device_id_code = ?").run('2000-01-01 00:00:00',dev);
+  await DeviceMonitorService.checkOfflineDevices();
+  assert.equal((await db.prepare('SELECT status FROM monitoring_devices WHERE device_id_code = ?').get(dev)).status,'OFFLINE');
+  assert.equal((await db.prepare('SELECT current_status FROM tanks WHERE tank_id_code = ?').get(tankCode)).current_status,'OFFLINE');
+  assert.equal((await deviceRequest({device_id:dev,tank_id:tankCode,distance_cm:15},API_KEY)).status,201);
+});

@@ -34,6 +34,10 @@ export class AlertService {
       });
     }
 
+    // A valid measurement clears a device-reported sensor fault, not the
+    // water-level alerts, which are handled independently below.
+    await db.prepare(`UPDATE water_alerts SET status = 'RESOLVED', resolved_at = datetime('now') WHERE tank_id = ? AND alert_type = 'SENSOR_ERROR' AND status IN ('ACTIVE','ACKNOWLEDGED')`).run(tank.id);
+
     // Recovery handling below must only consider water-level alerts. Counting every
     // active alert made each reading emit a new WATER_RECOVERED alert whenever a
     // DEVICE_OFFLINE alert existed for the tank.
@@ -55,7 +59,7 @@ export class AlertService {
 
         const alertId = 'alt-' + crypto.randomUUID().slice(0, 8);
         const title = `CRITICAL: Water level at ${percent}% on ${tank.name}`;
-        const message = `Tank water level has dropped to ${percent}% (${reading.water_depth_cm}cm depth), below critical threshold of ${critThreshold}%. Risk of immediate water outage.`;
+        const message = `Tank water level has dropped to ${percent}% (${reading.water_depth_cm}cm depth), with critical condition (configured threshold ${critThreshold}%; recovery hysteresis may apply). Check the site.`;
 
         await db.prepare(`
           INSERT INTO water_alerts (id, tank_id, device_id, alert_type, severity, title, message, status)
@@ -80,7 +84,7 @@ export class AlertService {
       if (!hasLowAlert && !hasCriticalAlert) {
         const alertId = 'alt-' + crypto.randomUUID().slice(0, 8);
         const title = `WARNING: Low water level at ${percent}% on ${tank.name}`;
-        const message = `Tank water level is at ${percent}% (${reading.water_depth_cm}cm depth), below warning threshold of ${lowThreshold}%. Inflow replenishment needed.`;
+        const message = `Tank water level is at ${percent}% (${reading.water_depth_cm}cm depth), with low condition (configured threshold ${lowThreshold}%; recovery hysteresis may apply). Check the site.`;
 
         await db.prepare(`
           INSERT INTO water_alerts (id, tank_id, device_id, alert_type, severity, title, message, status)
@@ -112,7 +116,7 @@ export class AlertService {
 
         const alertId = 'alt-' + crypto.randomUUID().slice(0, 8);
         const title = `RECOVERED: Water level normalized to ${percent}% on ${tank.name}`;
-        const message = `Tank condition has recovered to ${percent}% (${reading.water_depth_cm}cm depth). Supply is stable.`;
+        const message = `Tank condition has recovered to ${percent}% (${reading.water_depth_cm}cm depth). Inspect the situation before concluding that supply is stable.`;
 
         await db.prepare(`
           INSERT INTO water_alerts (id, tank_id, device_id, alert_type, severity, title, message, status)
