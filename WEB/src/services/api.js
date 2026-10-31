@@ -1,4 +1,4 @@
-// API Service for MajiSmart Zambia Web Dashboard
+// API Service for the SmartWater Zambia Web Dashboard
 //
 // Deployment notes (free-tier hosting):
 // - The shared API runs on a free Render instance that sleeps after ~15 minutes and
@@ -6,7 +6,28 @@
 // - Server-Sent Events cannot survive a sleeping instance, so the realtime stream
 //   falls back to polling and retries SSE in the background.
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
+// Where the browser sends API calls.
+//
+// A build-time VITE_API_BASE_URL is preferred, but a missing or malformed value
+// must never leave the deployed site calling itself: Cloudflare Pages only
+// serves static files, so a relative "/api" answers every POST with 405 and the
+// login form reports "Unexpected response (405)". The published Render origin is
+// therefore used as the production fallback, while local dev keeps the Vite
+// proxy at "/api".
+const FALLBACK_API_BASE = 'https://majismart-api.onrender.com/api';
+
+const buildBase = String(import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
+const pageHost = typeof window !== 'undefined' ? window.location.hostname : '';
+const isLocalPage = !pageHost
+  || /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])$/.test(pageHost);
+
+const API_BASE = buildBase && (isLocalPage || buildBase.startsWith('http'))
+  ? buildBase
+  : (isLocalPage ? '/api' : FALLBACK_API_BASE);
+
+if (typeof console !== 'undefined') {
+  console.info('[API] base:', API_BASE, buildBase ? '(from build variable)' : '(built-in fallback)');
+}
 
 const REQUEST_TIMEOUT_MS = 70000; // covers a cold start on the free instance
 const RETRY_DELAY_MS = 2500;
@@ -88,7 +109,11 @@ export const api = {
             return payload.status ? payload : { ...payload, status: res.status };
           }
           if (payload) return payload;
-          lastError = { success: false, error: `Unexpected response (${res.status})`, status: res.status };
+          lastError = {
+            success: false,
+            error: `Unexpected response (${res.status}) from ${new URL(url, window.location.href).host}`,
+            status: res.status
+          };
         }
       } catch (err) {
         lastError = {
