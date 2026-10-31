@@ -26,10 +26,15 @@ android {
         // Web OAuth client id from Google Cloud Console. Used as the "server client id"
         // for Google Sign-In so the ID token audience matches the API allow-list,
         // and inlined into the web dashboard build the same way.
+        // A Google OAuth *client id* is public (it ships inside the APK by design;
+        // the protection is the package name + SHA-1 pairing in Google Cloud).
+        // The project default lets a fresh clone sign in with Google without any
+        // Gradle flags; override with -PgoogleWebClientId=... to use another client.
+        val googleClientIdProperty = project.findProperty("googleWebClientId") as String?
         buildConfigField(
             "String",
             "GOOGLE_WEB_CLIENT_ID",
-            "\"${project.findProperty("googleWebClientId") ?: ""}\""
+            "\"${googleClientIdProperty ?: "66951276979-66l1j0kdakebc5hnjfjujb8ua2th125u.apps.googleusercontent.com"}\""
         )
         manifestPlaceholders["MAPS_API_KEY"] = project.findProperty("mapsApiKey") ?: "YOUR_GOOGLE_MAPS_API_KEY"
 

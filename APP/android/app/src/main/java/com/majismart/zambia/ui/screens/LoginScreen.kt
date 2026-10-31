@@ -257,14 +257,14 @@ fun LoginScreen(api: MajiSmartApiService) {
                     Spacer(Modifier.height(16.dp))
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        HorizontalDivider(modifier = Modifier.weight(1f))
+                        Box(Modifier.weight(1f).height(1.dp).background(Color(0xFFE2E8F0)))
                         Text(
                             "or",
                             fontSize = 11.sp,
                             color = Color(0xFF94A3B8),
                             modifier = Modifier.padding(horizontal = 10.dp)
                         )
-                        HorizontalDivider(modifier = Modifier.weight(1f))
+                        Box(Modifier.weight(1f).height(1.dp).background(Color(0xFFE2E8F0)))
                     }
 
                     Spacer(Modifier.height(16.dp))

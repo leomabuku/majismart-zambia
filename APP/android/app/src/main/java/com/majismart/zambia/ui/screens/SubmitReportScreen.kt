@@ -72,8 +72,8 @@ fun SubmitReportScreen(
     val categories = listOf(
         Triple("BURST_PIPE", "Burst Pipe", Icons.Default.InvertColors),
         Triple("PIPE_LEAKAGE", "Pipe Leak", Icons.Default.WaterDrop),
-        Triple("WATER_SHORTAGE", "No Water", Icons.Default.WaterDamage),
-        Triple("WATER_QUALITY", "Water Quality", Icons.Default.Science)
+        Triple("WATER_SHORTAGE", "No Water", Icons.Default.Speed),
+        Triple("WATER_QUALITY", "Water Quality", Icons.Default.Warning)
     )
 
     val locationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
