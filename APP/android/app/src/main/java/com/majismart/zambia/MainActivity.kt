@@ -25,6 +25,12 @@ import com.majismart.zambia.ui.components.GoogleSignInHeader
 import com.majismart.zambia.ui.screens.*
 import com.majismart.zambia.ui.theme.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -98,37 +104,54 @@ fun MainAppScreen(api: MajiSmartApiService) {
     var tanks by remember { mutableStateOf<List<Tank>>(emptyList()) }
     var reports by remember { mutableStateOf<List<CommunityReport>>(emptyList()) }
     var isLoading by remember { mutableStateOf(false) }
+    var connectionError by remember { mutableStateOf<String?>(null) }
+    var lastSyncedAt by remember { mutableStateOf<String?>(null) }
+    val refreshMutex = remember { Mutex() }
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     val notifications = NotificationHelper.notifications
     val unreadNotifCount = NotificationHelper.getUnreadCount()
 
-    fun refreshData() {
-        scope.launch {
-            isLoading = true
-            try {
-                val tankRes = api.getTanks()
-                if (tankRes.isSuccessful && tankRes.body()?.data != null) {
-                    tanks = tankRes.body()!!.data!!
-                } else {
-                    tanks = emptyList()
-                }
-
-                val repRes = api.getReports()
-                if (repRes.isSuccessful && repRes.body()?.data != null) {
-                    reports = repRes.body()!!.data!!
-                } else {
-                    reports = emptyList()
-                }
-            } catch (e: Exception) {
-                // Keep last-known records on connection failure; do not fabricate readings.
-            } finally {
-                isLoading = false
+    suspend fun loadData() {
+        // Manual refresh and periodic refresh must never overlap or race.
+        if (!refreshMutex.tryLock()) return
+        isLoading = true
+        try {
+            val tankRes = api.getTanks()
+            val tankData = tankRes.body()?.data
+            if (!tankRes.isSuccessful || tankData == null) {
+                connectionError = "Unable to refresh tank data. Showing last-known information."
+                return
             }
+            tanks = tankData
+            lastSyncedAt = java.text.DateFormat.getDateTimeInstance().format(java.util.Date())
+            connectionError = null
+            val repRes = api.getReports()
+            if (repRes.isSuccessful && repRes.body()?.data != null) {
+                reports = repRes.body()!!.data!!
+            } else {
+                connectionError = "Tank data refreshed, but reports could not be refreshed."
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            connectionError = "Connection unavailable. Showing last-known information."
+        } finally {
+            isLoading = false
+            refreshMutex.unlock()
         }
     }
 
-    LaunchedEffect(Unit) {
-        refreshData()
+    fun refreshData() { scope.launch { loadData() } }
+
+    // Refresh while the screen is visible; this is polling, not live SSE.
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                loadData()
+                delay(30_000)
+            }
+        }
     }
 
     Scaffold(
@@ -206,6 +229,8 @@ fun MainAppScreen(api: MajiSmartApiService) {
                 0 -> HomeScreen(
                     tanks = tanks,
                     isLoading = isLoading,
+                    connectionError = connectionError,
+                    lastSyncedAt = lastSyncedAt,
                     onRefresh = { refreshData() },
                     onNavigateToReport = { selectedTab = 2 }
                 )
