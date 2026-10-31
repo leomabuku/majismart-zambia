@@ -1,6 +1,7 @@
 package com.majismart.zambia.data.remote
 
 import com.majismart.zambia.BuildConfig
+import com.majismart.zambia.auth.AuthManager
 import com.majismart.zambia.data.model.*
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -12,8 +13,21 @@ import java.util.concurrent.TimeUnit
 
 interface MajiSmartApiService {
 
+    // --- Authentication (shared with the web dashboard) ---------------------
     @GET("api/health")
     suspend fun health(): Response<Map<String, Any>>
+
+    @POST("api/auth/login")
+    suspend fun login(@Body request: LoginRequest): Response<AuthResponse>
+
+    @POST("api/auth/google")
+    suspend fun loginWithGoogle(@Body request: GoogleLoginRequest): Response<AuthResponse>
+
+    @GET("api/auth/me")
+    suspend fun me(): Response<AuthResponse>
+
+    @POST("api/auth/logout")
+    suspend fun logout(): Response<AuthResponse>
 
     @GET("api/dashboard/summary")
     suspend fun getSummary(): Response<SummaryResponse>
@@ -48,6 +62,19 @@ interface MajiSmartApiService {
                 .readTimeout(90, TimeUnit.SECONDS)
                 .writeTimeout(30, TimeUnit.SECONDS)
                 .retryOnConnectionFailure(true)
+                // Every request carries the session JWT once the user signs in,
+                // so protected endpoints work exactly as they do on the web.
+                .addInterceptor { chain ->
+                    val token = AuthManager.authToken
+                    val request = if (token.isNullOrBlank()) {
+                        chain.request()
+                    } else {
+                        chain.request().newBuilder()
+                            .header("Authorization", "Bearer $token")
+                            .build()
+                    }
+                    chain.proceed(request)
+                }
                 .apply {
                     if (BuildConfig.DEBUG) {
                         addInterceptor(

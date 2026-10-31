@@ -149,7 +149,7 @@ Rules:
 - The URL must be **HTTPS** and end with `/` (the code normalises a missing slash).
 - Cleartext HTTP is now blocked except for `10.0.2.2`, `localhost`, `127.0.0.1` (`res/xml/network_security_config.xml`), so an emulator build still works against a local API with `-PapiBaseUrl=http://10.0.2.2:5000/`.
 - Requests now use 30 s connect / 90 s read timeouts, so the first request after Render has been idle succeeds instead of failing at 10 s.
-- The app has **no offline cache** and no auth token; it reads public endpoints and posts reports anonymously. That is fine for the pilot but not for Play Store production — see DEPLOYMENT.md §5.
+- The app now has a **real session**: email/password or Google sign-in, JWT stored in SharedPreferences, attached to every request, cleared on sign-out (see §3.1).
 
 Release build for Play internal testing:
 
@@ -158,6 +158,21 @@ Release build for Play internal testing:
 ```
 
 You need a release keystore (`signingConfigs`) and the Play Console account ($25 one-time) before this can be uploaded.
+
+### 3.1 Sign in on Android (email/password and Google)
+
+The app boots into `LoginScreen` unless `AuthManager` has a stored JWT. Sign-out lives in the header (top-right, next to the notifications bell) and returns to the login screen.
+
+Google sign-in needs **one Web OAuth client** shared by both platforms:
+
+```bash
+cd APP/android
+./gradlew assembleDebug -PgoogleWebClientId=1234-abcd.apps.googleusercontent.com
+```
+
+- `googleWebClientId` is the **Web application** client id, not the Android one. Google issues the ID token with that audience, and the API allow-list (`GOOGLE_CLIENT_ID`) must contain the same value.
+- Register the Android app in the same Google Cloud project as an **Android** OAuth client with package `com.majismart.zambia` and the SHA-1 of the keystore you build with (`./gradlew signingReport`).
+- Leave the property empty to build an app with Google sign-in visibly disabled; email/password still works.
 
 ---
 
@@ -245,3 +260,54 @@ In the browser: dashboard loads, header says **Realtime Connected**, the new rea
 3. **Pagination** on `/api/reports` and `/api/alerts` (currently unbounded) — matters as soon as the free instance has real traffic.
 4. **Supabase Auth** to replace the custom `sha256` password scheme, and real Google sign-in in the app (DEPLOYMENT.md §5.2).
 5. **Photos to Supabase Storage or R2** instead of base64 in the report body.
+
+---
+
+## 9. Google sign-in (web + Android)
+
+The shared API is the only component that decides who a user is. Google only proves the identity: the web dashboard (Google Identity Services) and the Android app (Google Sign-In) both POST a signed ID token to `POST /api/auth/google`, the API verifies it against Google's public keys, then issues the same JWT that password login returns. No client secret is stored anywhere.
+
+### 9.1 Google Cloud Console (once)
+
+1. <https://console.cloud.google.com/> → create/select a project (e.g. `majismart-zambia`).
+2. **APIs & Services → OAuth consent screen**: User type **External**, app name `MajiSmart Zambia`, support email, developer contact. While the app is in **Testing**, add the Google accounts that may sign in under **Test users** (max 100). Publish it later to open it to everyone.
+3. **APIs & Services → Credentials → Create credentials → OAuth client ID**:
+   - **Web application** — name `MajiSmart Web`; **Authorised JavaScript origins**: `https://majismart-zambia.pages.dev` and `http://localhost:3000`. No redirect URI is needed for the ID-token flow.
+   - **Android** (second client, same project) — package name `com.majismart.zambia`, plus the SHA-1 from `./gradlew signingReport`.
+4. Copy the **Web** client id — it looks like `1234567890-abcdefg.apps.googleusercontent.com`.
+
+### 9.2 Wire it into the three deployments
+
+| Where | Setting | Value |
+|---|---|---|
+| Render → `majismart-api` → Environment | `GOOGLE_CLIENT_ID` | the Web client id (comma separated if you add more) |
+| Cloudflare Pages → `majismart-zambia` → Settings → Variables | `VITE_GOOGLE_CLIENT_ID` | the same Web client id |
+| Android build | `-PgoogleWebClientId` | the same Web client id |
+
+Both the API and the Pages project need a **new deploy** after adding the variables (Vite inlines `VITE_*` at build time).
+
+### 9.3 What happens on first Google sign-in
+
+- Known email (e.g. the seeded `admin@majismart.zm`): the Google identity is **linked** to the existing profile. The role is kept, and password login keeps working.
+- Unknown email: a **customer** profile is created with `auth_provider = 'google'` and no usable password. An administrator can promote it later.
+- Google accounts always report a verified email, which is why the link is safe; an unverified email is rejected with `403`.
+
+### 9.4 Endpoints
+
+| Method + path | Body | Returns |
+|---|---|---|
+| `POST /api/auth/login` | `{ email, password }` | `{ success, token, user }` |
+| `POST /api/auth/google` | `{ credential }` (Google ID token) | `{ success, token, user }` |
+| `POST /api/auth/logout` | `{}` | `{ success }` (JWTs are stateless; clients drop the token) |
+| `GET /api/auth/me` | — (Bearer token) | `{ success, user }` |
+
+### 9.5 Troubleshooting
+
+| Symptom | Cause |
+|---|---|
+| Google button missing on the web | `VITE_GOOGLE_CLIENT_ID` not set on the Pages project, or the site was not rebuilt after adding it |
+| `The given origin is not allowed for the given client ID` | `https://majismart-zambia.pages.dev` missing from **Authorised JavaScript origins** |
+| `Google credential could not be verified` (401) | `GOOGLE_CLIENT_ID` on Render does not match the client id the page used, or the API has not redeployed |
+| `Google sign-in is not configured on this server` (503) | `GOOGLE_CLIENT_ID` is empty on Render — the endpoint fails closed on purpose |
+| Android: `Google did not return an ID token` | `googleWebClientId` missing at build time, or the SHA-1/package pair is not registered |
+| Android: `ApiException` code 10 | `DEVELOPER_ERROR` — package name or SHA-1 mismatch in the Android OAuth client |

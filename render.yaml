@@ -47,6 +47,11 @@ services:
       # https://majismart-zambia.pages.dev,https://dashboard.example.zm
       - key: CORS_ORIGINS
         sync: false
+      # Google Identity Services client id(s) for "Continue with Google".
+      # Comma separated when the web and Android clients differ. Empty disables
+      # the endpoint with a 503 instead of failing open.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
       - key: DEVICE_OFFLINE_TIMEOUT_SECONDS
         value: '900'
       - key: SSE_HEARTBEAT_MS

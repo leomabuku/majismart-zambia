@@ -20,7 +20,7 @@ export function authenticateToken(req, res, next) {
     }
 
     // Attach current user record
-    const profile = await db.prepare('SELECT id, email, full_name, role, community, district FROM profiles WHERE id = ?').get(user.id);
+    const profile = await db.prepare('SELECT id, email, full_name, role, community, district, phone_number, avatar_url, auth_provider FROM profiles WHERE id = ?').get(user.id);
     if (!profile) {
       return res.status(401).json({ success: false, error: 'User profile no longer exists' });
     }
@@ -38,7 +38,7 @@ export function optionalAuth(req, res, next) {
   if (token) {
     jwt.verify(token, JWT_SECRET, async (err, user) => {
       if (!err && user) {
-        const profile = await db.prepare('SELECT id, email, full_name, role, community, district FROM profiles WHERE id = ?').get(user.id);
+        const profile = await db.prepare('SELECT id, email, full_name, role, community, district, phone_number, avatar_url, auth_provider FROM profiles WHERE id = ?').get(user.id);
         if (profile) req.user = profile;
       }
       next();

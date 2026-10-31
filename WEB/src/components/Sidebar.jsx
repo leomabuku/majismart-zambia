@@ -7,14 +7,16 @@ import {
   Bell, 
   Cpu, 
   LogOut, 
-  User, 
-  ShieldCheck,
+  User,
   Radio
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Sidebar({ activeTab, setActiveTab, alertCount, reportCount, isLive }) {
-  const { user, logout, login } = useAuth();
+  const { user, logout } = useAuth();
+  const displayName = user?.full_name || 'Signed in';
+  const roleLabel = user?.role === 'admin' ? 'Administrator' : user?.role === 'technician' ? 'Technician' : 'Customer';
+  const initial = (displayName.trim()[0] || 'U').toUpperCase();
 
   return (
     <aside className="sidebar">
@@ -90,30 +92,24 @@ export default function Sidebar({ activeTab, setActiveTab, alertCount, reportCou
       <div className="sidebar-footer">
         <div className="user-profile-widget">
           <div className="user-avatar">
-            {user?.full_name ? user.full_name[0] : 'U'}
+            {user?.avatar_url ? (
+              <img src={user.avatar_url} alt="" referrerPolicy="no-referrer" />
+            ) : (
+              initial
+            )}
           </div>
           <div className="user-info">
-            <div className="user-name">{user?.full_name || 'Mulenga Banda'}</div>
-            <span className="user-role-badge">
-              {user?.role === 'admin' ? 'Administrator' : 'Customer'}
-            </span>
+            <div className="user-name" title={user?.email || ''}>{displayName}</div>
+            <span className="user-role-badge">{roleLabel}</span>
           </div>
-          <button 
-            title="Switch / Logout" 
-            onClick={() => {
-              if (!import.meta.env.DEV) {
-                logout();
-                return;
-              }
-              if (user?.role === 'admin') {
-                login('mwape@community.zm', 'CustomerPass2026!');
-              } else {
-                login('admin@majismart.zm', 'AdminPassword2026!');
-              }
-            }}
-            style={{ color: '#90E0EF', padding: '4px' }}
+          <button
+            type="button"
+            className="logout-button"
+            title="Sign out"
+            aria-label="Sign out"
+            onClick={logout}
           >
-            <ShieldCheck size={18} />
+            <LogOut size={17} />
           </button>
         </div>
       </div>

@@ -154,6 +154,8 @@ app.post('/api/simulator/send', (req, res) => {
 // 2. AUTHENTICATION & PROFILES
 // ==========================================
 app.post('/api/auth/login', AuthController.login);
+app.post('/api/auth/google', AuthController.googleLogin);
+app.post('/api/auth/logout', AuthController.logout);
 app.post('/api/auth/register', AuthController.register);
 app.get('/api/auth/me', authenticateToken, AuthController.getProfile);
 

@@ -250,6 +250,9 @@ export async function initDatabase() {
       phone_number TEXT,
       community TEXT,
       district TEXT,
+      google_sub TEXT,
+      avatar_url TEXT,
+      auth_provider TEXT NOT NULL DEFAULT 'password',
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -369,8 +372,28 @@ export async function initDatabase() {
     );
   `);
 
+  // Lightweight in-file migration: CREATE TABLE IF NOT EXISTS never adds columns to
+  // an existing SQLite file, so older dev databases are patched here.
+  ensureSqliteProfileColumns();
+
   // Seed default data if profiles table is empty
   seedDefaultData();
+}
+
+// Adds the Google sign-in columns to a pre-existing SQLite database.
+function ensureSqliteProfileColumns() {
+  const existing = new Set(sqlite.prepare('PRAGMA table_info(profiles)').all().map((c) => c.name));
+  const additions = [
+    ['google_sub', 'TEXT'],
+    ['avatar_url', 'TEXT'],
+    ['auth_provider', "TEXT NOT NULL DEFAULT 'password'"]
+  ];
+  for (const [name, type] of additions) {
+    if (!existing.has(name)) {
+      sqlite.exec(`ALTER TABLE profiles ADD COLUMN ${name} ${type}`);
+      console.log(`[DB] Added profiles.${name} column`);
+    }
+  }
 }
 
 // Seeds the Supabase/PostgreSQL database with the same baseline the SQLite

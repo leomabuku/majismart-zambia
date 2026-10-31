@@ -10,6 +10,7 @@ import IncidentMap from './pages/IncidentMap';
 import AlertsCenter from './pages/AlertsCenter';
 import HardwareSimulator from './pages/HardwareSimulator';
 import MobileAppSimulator from './components/MobileAppSimulator';
+import LoginPage from './pages/LoginPage';
 
 function MainApp() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -221,10 +222,33 @@ function MainApp() {
   );
 }
 
+// Shown while the stored session is being confirmed against the API.
+function BootSplash() {
+  return (
+    <div className="boot-splash">
+      <div className="boot-logo">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="#03045E" aria-hidden="true">
+          <path d="M12 2.5c3.6 4.4 6.5 8 6.5 11.4a6.5 6.5 0 1 1-13 0C5.5 10.5 8.4 6.9 12 2.5z" />
+        </svg>
+      </div>
+      <div className="boot-text">MajiSmart Zambia</div>
+      <div className="boot-sub">Restoring your session…</div>
+    </div>
+  );
+}
+
+// Auth gate: nothing renders until we know who is signed in.
+function AuthenticatedApp() {
+  const { user, loading } = useAuth();
+  if (loading) return <BootSplash />;
+  if (!user) return <LoginPage />;
+  return <MainApp />;
+}
+
 export default function App() {
   return (
     <AuthProvider>
-      <MainApp />
+      <AuthenticatedApp />
     </AuthProvider>
   );
 }

@@ -82,6 +82,11 @@ export const api = {
           lastError = { success: false, error: `API unavailable (${res.status})`, status: res.status };
         } else {
           const payload = parseJson(await res.text());
+          // Carry the HTTP status so callers can tell "not signed in" (401/403)
+          // apart from "API was busy" (5xx) and a network failure.
+          if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+            return payload.status ? payload : { ...payload, status: res.status };
+          }
           if (payload) return payload;
           lastError = { success: false, error: `Unexpected response (${res.status})`, status: res.status };
         }

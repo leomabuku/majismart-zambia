@@ -23,6 +23,14 @@ android {
             "API_BASE_URL",
             "\"${project.findProperty("apiBaseUrl") ?: "https://majismart-api.onrender.com/"}\""
         )
+        // Web OAuth client id from Google Cloud Console. Used as the "server client id"
+        // for Google Sign-In so the ID token audience matches the API allow-list,
+        // and inlined into the web dashboard build the same way.
+        buildConfigField(
+            "String",
+            "GOOGLE_WEB_CLIENT_ID",
+            "\"${project.findProperty("googleWebClientId") ?: ""}\""
+        )
         manifestPlaceholders["MAPS_API_KEY"] = project.findProperty("mapsApiKey") ?: "YOUR_GOOGLE_MAPS_API_KEY"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
