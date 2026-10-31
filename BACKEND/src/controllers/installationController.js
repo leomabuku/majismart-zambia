@@ -23,7 +23,11 @@ export class InstallationController {
   static async create(req, res) {
     const b = req.body || {};
     try {
-      if (!str(b.name) || !/^[A-Za-z0-9_-]{1,50}$/.test(str(b.tank_id_code)) || !/^[A-Za-z0-9_-]{1,50}$/.test(str(b.device_id)) || typeof b.device_key !== 'string' || b.device_key.length < 24 || b.device_key.length > 256) throw new Error('Name, tank ID, device ID and a device credential of 24–256 characters are required');
+      const existingId = str(b.existing_tank_id);
+      if ((!existingId && (!str(b.name) || !/^[A-Za-z0-9_-]{1,50}$/.test(str(b.tank_id_code)))) || !/^[A-Za-z0-9_-]{1,50}$/.test(str(b.device_id)) || typeof b.device_key !== 'string' || b.device_key.length < 24 || b.device_key.length > 256) throw new Error('Tank details, device ID and a device credential of 24–256 characters are required');
+      const existing = existingId ? await db.prepare('SELECT id,tank_id_code FROM tanks WHERE id = ?').get(existingId) : null;
+      if (existingId && !existing) return res.status(404).json({success:false,error:'Existing tank not found'});
+      if (existingId && await db.prepare('SELECT tank_id FROM tank_installations WHERE tank_id = ?').get(existingId)) return res.status(409).json({success:false,error:'Tank already has an installation; use calibration or device replacement'});
       const num = key => b[key] === '' || b[key] == null ? null : Number(b[key]);
       const config = { shape: b.shape, height_cm: num('height_cm'), diameter_cm: num('diameter_cm'), length_cm: num('length_cm'), width_cm: num('width_cm'), empty_distance_cm: num('empty_distance_cm'), full_distance_cm: num('full_distance_cm'), dead_zone_cm: num('dead_zone_cm') ?? 0, tolerance_cm: num('tolerance_cm') ?? 0 };
       const offset = num('measurement_offset_cm') ?? 0;
@@ -40,14 +44,21 @@ export class InstallationController {
       classifyCondition(50, null, {critical, low, warning, hysteresis});
       if (b.station_id && !(await db.prepare('SELECT id FROM monitoring_stations WHERE id = ?').get(b.station_id))) throw new Error('Station not found');
       if (b.owner_id && !(await db.prepare('SELECT id FROM profiles WHERE id = ?').get(b.owner_id))) throw new Error('Owner not found');
-      if (await db.prepare('SELECT id FROM tanks WHERE tank_id_code = ?').get(str(b.tank_id_code)) || await db.prepare('SELECT id FROM monitoring_devices WHERE device_id_code = ?').get(str(b.device_id))) return res.status(409).json({success:false, error:'Tank or device ID already exists'});
-      const id = `tank-${crypto.randomUUID()}`, deviceId = `dev-${crypto.randomUUID()}`;
+      if ((!existingId && await db.prepare('SELECT id FROM tanks WHERE tank_id_code = ?').get(str(b.tank_id_code))) || await db.prepare('SELECT id FROM monitoring_devices WHERE device_id_code = ?').get(str(b.device_id))) return res.status(409).json({success:false, error:'Tank or device ID already exists'});
+      const id = existingId || `tank-${crypto.randomUUID()}`, deviceId = `dev-${crypto.randomUUID()}`;
       await db.transaction(async tx => {
-        await tx.run(`INSERT INTO tanks (id,tank_id_code,name,station_id,total_height_cm,usable_height_cm,capacity_liters,critical_threshold_percent,low_threshold_percent,current_status) VALUES (?,?,?,?,?,?,?,?,?,'OFFLINE')`, id, str(b.tank_id_code), str(b.name), nullable(b.station_id), config.height_cm, config.height_cm, Math.max(1, Math.round(nominal || measurement.usable_capacity_l)), critical, low);
+        if (existingId) {
+          // Do not infer calibration from old values. Retain history but clear the
+          // last-known display until the newly provisioned sensor reports.
+          await tx.run("UPDATE monitoring_devices SET is_active = FALSE, status = 'OFFLINE', tank_id = NULL, updated_at = datetime('now') WHERE tank_id = ?", id);
+          await tx.run("UPDATE tanks SET total_height_cm = ?, usable_height_cm = ?, capacity_liters = ?, critical_threshold_percent = ?, low_threshold_percent = ?, current_status = 'OFFLINE', last_reading_at = NULL, updated_at = datetime('now') WHERE id = ?", config.height_cm, config.height_cm, Math.max(1, Math.round(nominal || measurement.usable_capacity_l)), critical, low, id);
+        } else {
+          await tx.run(`INSERT INTO tanks (id,tank_id_code,name,station_id,total_height_cm,usable_height_cm,capacity_liters,critical_threshold_percent,low_threshold_percent,current_status) VALUES (?,?,?,?,?,?,?,?,?,'OFFLINE')`, id, str(b.tank_id_code), str(b.name), nullable(b.station_id), config.height_cm, config.height_cm, Math.max(1, Math.round(nominal || measurement.usable_capacity_l)), critical, low);
+        }
         await tx.run(`INSERT INTO tank_installations (tank_id,owner_id,address,community,latitude,longitude,shape,height_cm,diameter_cm,length_cm,width_cm,nominal_capacity_l,empty_distance_cm,full_distance_cm,measurement_offset_cm,dead_zone_cm,tolerance_cm,sensor_model,mounting_position,installer_notes,warning_threshold,hysteresis,provenance) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, id, nullable(b.owner_id), nullable(b.address), nullable(b.community), lat, lng, config.shape, config.height_cm, config.diameter_cm, config.length_cm, config.width_cm, nominal, config.empty_distance_cm, config.full_distance_cm, offset, config.dead_zone_cm, config.tolerance_cm, nullable(b.sensor_model), nullable(b.mounting_position), nullable(b.installer_notes), warning, hysteresis, provenance);
         await tx.run(`INSERT INTO monitoring_devices (id,device_id_code,tank_id,api_key_hash,status) VALUES (?,?,?,?,'OFFLINE')`, deviceId, str(b.device_id), id, hashPassword(b.device_key));
       });
-      return res.status(201).json({success:true, data:{id, tank_id_code:str(b.tank_id_code), device_id:str(b.device_id), installation_status:'AWAITING_CALIBRATION', calculated_capacity_l:measurement.usable_capacity_l}});
+      return res.status(201).json({success:true, data:{id, tank_id_code:existing ? existing.tank_id_code : str(b.tank_id_code), device_id:str(b.device_id), installation_status:'AWAITING_CALIBRATION', calculated_capacity_l:measurement.usable_capacity_l}});
     } catch (err) { console.error('[Installation]', err.message); return res.status(400).json({success:false, error:err.message}); }
   }
   static async calibrationTest(req, res) {

@@ -272,3 +272,17 @@ test('new failing calibration evidence blocks verification even after older pass
   const history=await (await fetch(`${BASE_URL}/api/installations/${installation.id}/calibration-tests`,{headers})).json();
   assert.equal(history.data.installation_status,'AWAITING_CALIBRATION');
 });
+
+test('administrator can configure a legacy tank without overwriting its identity or history', async () => {
+  const { db, hashPassword } = await import('../src/database/db.js');
+  const id = `legacy-${suffix}`, code = `LEGACY_${suffix}`, oldDevice = `OLD_${suffix}`, nextDevice = `MIGRATED_${suffix}`;
+  await db.prepare('INSERT INTO tanks (id,tank_id_code,name) VALUES (?,?,?)').run(id,code,'Existing tank');
+  await db.prepare('INSERT INTO monitoring_devices (id,device_id_code,tank_id,api_key_hash) VALUES (?,?,?,?)').run(`old-${suffix}`,oldDevice,id,hashPassword(API_KEY));
+  const token=await loginAsAdmin(); const headers={'Content-Type':'application/json',Authorization:`Bearer ${token}`};
+  const create = () => fetch(`${BASE_URL}/api/installations`,{method:'POST',headers,body:JSON.stringify({existing_tank_id:id,device_id:nextDevice,device_key:API_KEY,shape:'rectangular',height_cm:20,width_cm:10,length_cm:20,empty_distance_cm:25,full_distance_cm:5,provenance:'TEST'})});
+  const result=await create(); assert.equal(result.status,201); assert.equal((await result.json()).data.tank_id_code,code);
+  assert.equal((await create()).status,409);
+  const tank=await db.prepare('SELECT name,last_reading_at FROM tanks WHERE id = ?').get(id); assert.equal(tank.name,'Existing tank'); assert.equal(tank.last_reading_at,null);
+  assert.equal((await deviceRequest({device_id:oldDevice,tank_id:code,distance_cm:15})).status,403);
+  assert.equal((await deviceRequest({device_id:nextDevice,tank_id:code,distance_cm:15})).status,201);
+});

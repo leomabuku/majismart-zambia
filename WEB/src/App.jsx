@@ -194,7 +194,7 @@ function MainApp() {
             />
           )}
 
-          {activeTab === 'installation' && isAdmin && <TankInstallation stations={stations} onSaved={reloadData} />}
+          {activeTab === 'installation' && isAdmin && <TankInstallation stations={stations} tanks={tanks} onSaved={reloadData} />}
 
           {activeTab === 'report-analytics' && isAdmin && <ReportAnalytics stations={stations} />}
 
