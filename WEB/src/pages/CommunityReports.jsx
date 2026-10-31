@@ -23,6 +23,7 @@ export default function CommunityReports({ reports, onReload }) {
   const [showNewModal, setShowNewModal] = useState(false);
   const [statusAction, setStatusAction] = useState({ status: '', notes: '', reason: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   // New report form state
   const [newReport, setNewReport] = useState({
@@ -74,7 +75,7 @@ export default function CommunityReports({ reports, onReload }) {
 
   const filtered = reports.filter(r => {
     if (!isAdmin && r.reporter_id !== user?.id) return false;
-    if (filterCategory !== 'ALL' && r.category !== filterCategory) return false;
+    if (filterCategory !== 'ALL' && (r.reported_category || r.category) !== filterCategory) return false;
     if (filterStatus !== 'ALL' && r.status !== filterStatus) return false;
     return true;
   });
@@ -105,9 +106,11 @@ export default function CommunityReports({ reports, onReload }) {
 
   const handleCreateReport = async (e) => {
     e.preventDefault();
+    setSubmitError('');
     setSubmitting(true);
     try {
-      const res = await api.post('/reports', newReport);
+      const payload = { ...newReport, observed_at: newReport.observed_at ? new Date(newReport.observed_at).toISOString() : null };
+      const res = await api.post('/reports', payload);
       if (res.success) {
         setShowNewModal(false);
         setNewReport({
@@ -122,9 +125,9 @@ export default function CommunityReports({ reports, onReload }) {
         });
         setLocationNote('');
         onReload();
-      }
+      } else { setSubmitError(`${res.error || 'Submission not confirmed'}. Check your reports before retrying to avoid duplicates.`); }
     } catch (err) {
-      console.error(err);
+      setSubmitError('Submission not confirmed. Check your reports before retrying to avoid duplicates.');
     } finally {
       setSubmitting(false);
     }
@@ -185,6 +188,10 @@ export default function CommunityReports({ reports, onReload }) {
           <option value="WATER_SHORTAGE">Water Shortage</option>
           <option value="PIPE_LEAKAGE">Pipe Leakage</option>
           <option value="BURST_PIPE">Burst Pipe</option>
+          <option value="LOW_PRESSURE">Low Pressure</option>
+          <option value="WATER_INTERRUPTION">Water Interruption</option>
+          <option value="DAMAGED_INFRASTRUCTURE">Damaged Infrastructure</option>
+          <option value="MONITORING_FAULT">Monitoring Fault</option>
           <option value="TANK_MALFUNCTION">Tank Malfunction</option>
           <option value="WATER_QUALITY">Water Quality</option>
           <option value="OTHER">Other Issues</option>
@@ -227,7 +234,7 @@ export default function CommunityReports({ reports, onReload }) {
                 </td>
                 <td>
                   <span style={{ fontSize: '12px', fontWeight: 600, color: '#334155' }}>
-                    {report.category.replace('_', ' ')}
+                    {(report.reported_category || report.category).replaceAll('_', ' ')}
                   </span>
                 </td>
                 <td>
@@ -285,6 +292,11 @@ export default function CommunityReports({ reports, onReload }) {
 
             <div style={{ background: '#F8FAFC', padding: '14px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px' }}>
               <p><strong>Description:</strong> {selectedReport.description}</p>
+              <p><strong>Customer-reported category:</strong> {(selectedReport.reported_category || selectedReport.category).replaceAll('_', ' ')}</p>
+              {selectedReport.reported_severity && <p><strong>Customer-reported severity:</strong> {selectedReport.reported_severity}</p>}
+              {selectedReport.ongoing && <p><strong>Still ongoing (reported):</strong> {selectedReport.ongoing}</p>}
+              {selectedReport.observed_at && <p><strong>Observed:</strong> {new Date(selectedReport.observed_at).toLocaleString()}</p>}
+              {selectedReport.affected_area && <p><strong>Affected area (reported):</strong> {selectedReport.affected_area}</p>}
               <p style={{ marginTop: '6px' }}><strong>Location:</strong> {selectedReport.location_name}</p>
               <p style={{ marginTop: '6px' }}>
                 <strong>Reporter:</strong>{' '}
@@ -382,6 +394,7 @@ export default function CommunityReports({ reports, onReload }) {
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <h3 style={{ fontSize: '18px', color: '#03045E', marginBottom: '16px' }}>Submit Water Incident Report</h3>
             <form onSubmit={handleCreateReport}>
+              {submitError && <p role="alert" style={{color: "#b91c1c"}}>{submitError}</p>}
               <div className="form-group">
                 <label className="form-label">Category</label>
                 <select 
@@ -392,7 +405,11 @@ export default function CommunityReports({ reports, onReload }) {
                   <option value="WATER_SHORTAGE">Water Shortage</option>
                   <option value="PIPE_LEAKAGE">Pipe Leakage</option>
                   <option value="BURST_PIPE">Burst Pipe</option>
-                  <option value="TANK_MALFUNCTION">Tank Malfunction</option>
+                  <option value="LOW_PRESSURE">Low Pressure</option>
+          <option value="WATER_INTERRUPTION">Water Interruption</option>
+          <option value="DAMAGED_INFRASTRUCTURE">Damaged Infrastructure</option>
+          <option value="MONITORING_FAULT">Monitoring Fault</option>
+          <option value="TANK_MALFUNCTION">Tank Malfunction</option>
                   <option value="WATER_QUALITY">Water Quality Concern</option>
                   <option value="OTHER">Other Issue</option>
                 </select>
@@ -441,6 +458,19 @@ export default function CommunityReports({ reports, onReload }) {
                 {locationNote && <p className="geo-capture-note">{locationNote}</p>}
               </div>
 
+              <div className="form-group">
+                <label className="form-label">When did you observe it? (optional)</label>
+                <input className="form-input" type="datetime-local" value={newReport.observed_at || ''} onChange={e => setNewReport({ ...newReport, observed_at: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Your assessment of severity (optional)</label>
+                <select className="form-select" value={newReport.reported_severity || ''} onChange={e => setNewReport({ ...newReport, reported_severity: e.target.value })}><option value="">Not stated</option><option value="LOW">Low</option><option value="MEDIUM">Medium</option><option value="HIGH">High</option><option value="UNKNOWN">Not sure</option></select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Is it still happening? (optional)</label>
+                <select className="form-select" value={newReport.ongoing || ''} onChange={e => setNewReport({ ...newReport, ongoing: e.target.value })}><option value="">Not stated</option><option value="YES">Yes</option><option value="NO">No</option><option value="UNKNOWN">Not sure</option></select>
+              </div>
+              <div className="form-group"><label className="form-label">Affected area (optional; avoid names or personal details)</label><input className="form-input" maxLength="255" value={newReport.affected_area || ''} onChange={e => setNewReport({ ...newReport, affected_area: e.target.value })} /></div>
               <div className="form-group">
                 <label className="form-label">Detailed Description *</label>
                 <textarea 

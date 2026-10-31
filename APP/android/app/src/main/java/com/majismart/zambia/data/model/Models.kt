@@ -38,7 +38,9 @@ data class Tank(
     @SerializedName("last_reading_at") val lastReadingAt: String?,
     @SerializedName("current_condition") val currentCondition: String? = null,
     @SerializedName("current_volume_l") val currentVolumeL: Float? = null,
-    @SerializedName("installation_status") val installationStatus: String? = null
+    @SerializedName("installation_status") val installationStatus: String? = null,
+    @SerializedName("latitude") val latitude: Double? = null,
+    @SerializedName("longitude") val longitude: Double? = null
 )
 
 data class CommunityReport(
@@ -49,11 +51,15 @@ data class CommunityReport(
     @SerializedName("location_name") val locationName: String,
     @SerializedName("status") val status: String,
     @SerializedName("admin_notes") val adminNotes: String?,
-    @SerializedName("created_at") val createdAt: String
+    @SerializedName("created_at") val createdAt: String,
+    @SerializedName("reported_category") val reportedCategory: String? = null,
+    @SerializedName("latitude") val latitude: Double? = null,
+    @SerializedName("longitude") val longitude: Double? = null
 )
 
 data class CreateReportRequest(
     @SerializedName("category") val category: String,
+    @SerializedName("reported_severity") val reportedSeverity: String? = null,
     @SerializedName("title") val title: String,
     @SerializedName("description") val description: String,
     @SerializedName("location_name") val locationName: String,

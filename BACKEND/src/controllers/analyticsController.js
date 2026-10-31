@@ -39,16 +39,16 @@ export class AnalyticsController {
       // Exclude the three fixed baseline reports inserted by both database seeders.
       let where = " WHERE r.id NOT IN ('rep-001', 'rep-002', 'rep-003')";
       const params = [];
-      for (const [value, clause] of [[from, 'DATE(r.created_at) >= ?'], [to, 'DATE(r.created_at) <= ?'], [category, 'r.category = ?'], [status, 'r.status = ?'], [station, 'r.station_id = ?'], [location, 'LOWER(r.location_name) = LOWER(?)']]) {
+      for (const [value, clause] of [[from, 'DATE(r.created_at) >= ?'], [to, 'DATE(r.created_at) <= ?'], [category, 'COALESCE(d.reported_category, r.category) = ?'], [status, 'r.status = ?'], [station, 'r.station_id = ?'], [location, 'LOWER(r.location_name) = LOWER(?)']]) {
         if (value) { where += ` AND ${clause}`; params.push(value); }
       }
-      const group = async (field) => db.prepare(`SELECT ${field} AS label, COUNT(*) AS count FROM community_reports r ${where} GROUP BY ${field} ORDER BY count DESC, label ASC`).all(...params);
+      const group = async (field) => db.prepare(`SELECT ${field} AS label, COUNT(*) AS count FROM community_reports r LEFT JOIN report_submission_details d ON d.report_id = r.id ${where} GROUP BY ${field} ORDER BY count DESC, label ASC`).all(...params);
       // Each case field is the latest non-null administrative entry for that
       // report; correlated subqueries avoid multiplying counts by history events.
       const latest = field => `(SELECT e.${field} FROM report_case_events e WHERE e.report_id = r.id AND e.${field} IS NOT NULL ORDER BY e.created_at DESC, e.id DESC LIMIT 1)`;
       const [statuses, categories, locations, days, months, stations, classifications, severities, outcomes, durations] = await Promise.all([
-        group('r.status'), group('r.category'), group('r.location_name'), group('DATE(r.created_at)'), group('SUBSTR(CAST(r.created_at AS TEXT),1,7)'), group('r.station_id'), group(latest('confirmed_category')), group(latest('severity')), group(latest('outcome')),
-        db.prepare(`SELECT r.created_at, (SELECT MAX(h.created_at) FROM report_status_history h WHERE h.report_id = r.id AND h.new_status = 'RESOLVED') AS resolved_at FROM community_reports r ${where} AND r.status = 'RESOLVED'`).all(...params)
+        group('r.status'), group('COALESCE(d.reported_category, r.category)'), group('r.location_name'), group('DATE(r.created_at)'), group('SUBSTR(CAST(r.created_at AS TEXT),1,7)'), group('r.station_id'), group(latest('confirmed_category')), group(latest('severity')), group(latest('outcome')),
+        db.prepare(`SELECT r.created_at, (SELECT MAX(h.created_at) FROM report_status_history h WHERE h.report_id = r.id AND h.new_status = 'RESOLVED') AS resolved_at FROM community_reports r LEFT JOIN report_submission_details d ON d.report_id = r.id ${where} AND r.status = 'RESOLVED'`).all(...params)
       ]);
       const total = statuses.reduce((n, row) => n + Number(row.count), 0);
       const counts = Object.fromEntries(statuses.map(row => [row.label, Number(row.count)]));

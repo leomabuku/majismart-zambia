@@ -85,8 +85,8 @@ export const api = {
 
   /**
    * Shared request helper. Never throws: callers check `res.success`.
-   * Retries once on network failure, 502/503/504 and 429, which is what a
-   * waking free-tier instance usually returns.
+   * Retries safe GET requests once on network failure, 502/503/504 or 429.
+   * Mutations are not retried: a lost response may follow a successful write.
    */
   async request(endpoint, { method = 'GET', body } = {}) {
     const url = `${API_BASE}${endpoint}`;
@@ -98,7 +98,8 @@ export const api = {
     };
 
     let lastError = null;
-    for (let attempt = 0; attempt < 2; attempt++) {
+    const maxAttempts = method === 'GET' ? 2 : 1;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
         const res = await fetchWithTimeout(url, options);
         if (res.status === 429 || res.status >= 502) {
@@ -124,7 +125,7 @@ export const api = {
           detail: err.message
         };
       }
-      if (attempt === 0) await sleep(RETRY_DELAY_MS);
+      if (attempt + 1 < maxAttempts) await sleep(RETRY_DELAY_MS);
     }
     console.warn(`[API] ${method} ${endpoint} failed:`, lastError?.error);
     return lastError || { success: false, error: 'Request failed' };

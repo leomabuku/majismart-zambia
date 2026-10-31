@@ -29,7 +29,7 @@ export default function ReportAnalytics({ stations }) {
     <div className="card" style={{ padding: 20, display: 'flex', flexWrap: 'wrap', gap: 12 }}>
       <label>From <input type="date" name="from" value={filters.from} onChange={set} /></label>
       <label>To <input type="date" name="to" value={filters.to} onChange={set} /></label>
-      <label>Category <select name="category" value={filters.category} onChange={set}><option value="">All</option>{['WATER_SHORTAGE','PIPE_LEAKAGE','BURST_PIPE','TANK_MALFUNCTION','WATER_QUALITY','OTHER'].map(x => <option key={x} value={x}>{label(x)}</option>)}</select></label>
+      <label>Category <select name="category" value={filters.category} onChange={set}><option value="">All</option>{['WATER_SHORTAGE','PIPE_LEAKAGE','BURST_PIPE','LOW_PRESSURE','WATER_INTERRUPTION','DAMAGED_INFRASTRUCTURE','MONITORING_FAULT','TANK_MALFUNCTION','WATER_QUALITY','OTHER'].map(x => <option key={x} value={x}>{label(x)}</option>)}</select></label>
       <label>Status <select name="status" value={filters.status} onChange={set}><option value="">All</option>{['SUBMITTED','ACKNOWLEDGED','IN_PROGRESS','RESOLVED','REJECTED'].map(x => <option key={x} value={x}>{label(x)}</option>)}</select></label>
       <label>Station <select name="station" value={filters.station} onChange={set}><option value="">All</option>{stations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
       <label>Exact location <input name="location" value={filters.location} onChange={set} /></label>

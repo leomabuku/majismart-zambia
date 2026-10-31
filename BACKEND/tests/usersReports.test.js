@@ -253,3 +253,24 @@ test('administrative analytics use the latest case classification without multip
   assert.equal(result.data.severities[0].label,'HIGH');
   assert.equal(result.data.outcomes[0].label,'PENDING');
 });
+
+test('structured customer submission preserves reported details separately from legacy category and case findings', async () => {
+  const { token } = await login(CUSTOMER_EMAIL, CUSTOMER_PASSWORD);
+  const base = {category:'LOW_PRESSURE',title:'Low pressure',description:'Only a trickle at the tap',location_name:'Test neighbourhood',reported_severity:'HIGH',ongoing:'YES',affected_area:'Two streets',observed_at:'2025-01-02T08:00:00Z'};
+  const send = body => fetch(`${BASE_URL}/api/reports`,{method:'POST',headers:authed(token),body:JSON.stringify(body)});
+  assert.equal((await send({...base,reported_severity:'SEVERE'})).status,400);
+  assert.equal((await send({...base,observed_at:'9999-01-02T08:00:00Z'})).status,400);
+  const response=await send(base); assert.equal(response.status,201);
+  const created=(await response.json()).data;
+  assert.equal(created.category,'OTHER'); assert.equal(created.reported_category,'LOW_PRESSURE');
+  assert.equal(created.reported_severity,'HIGH'); assert.equal(created.ongoing,'YES');
+  const {db}=await import('../src/database/db.js');
+  assert.equal((await db.prepare('SELECT provenance FROM report_submission_details WHERE report_id = ?').get(created.id)).provenance,'UNKNOWN');
+  const own=await (await fetch(`${BASE_URL}/api/my/reports`,{headers:authed(token)})).json();
+  assert.ok(own.data.some(r=>r.id===created.id && r.affected_area==='Two streets'));
+  const publicResult=await (await fetch(`${BASE_URL}/api/reports/${created.id}`)).json();
+  assert.equal(publicResult.data.affected_area,null);
+  const admin=(await login(ADMIN_EMAIL, ADMIN_PASSWORD)).token;
+  const analytics=await (await fetch(`${BASE_URL}/api/analytics/reports?category=LOW_PRESSURE`,{headers:authed(admin)})).json();
+  assert.ok(analytics.success); assert.ok(analytics.data.categories.some(r=>r.label==='LOW_PRESSURE' && Number(r.count)>=1));
+});

@@ -27,7 +27,7 @@ fun InteractiveLocationPicker(
     modifier: Modifier = Modifier
 ) {
     var isMapExpanded by remember { mutableStateOf(false) }
-    var currentPresetIndex by remember { mutableStateOf(0) }
+    var currentPresetIndex by remember { mutableStateOf(-1) }
 
     Column(modifier = modifier.fillMaxWidth()) {
         Text(
@@ -135,7 +135,7 @@ fun InteractiveLocationPicker(
             ) {
                 InteractiveMapView(
                     isPickerMode = true,
-                    selectedLatLng = LUSAKA_PRESETS[currentPresetIndex].latLng,
+                    selectedLatLng = LUSAKA_PRESETS.getOrNull(currentPresetIndex)?.latLng,
                     onLocationSelected = { latLng, addressName ->
                         onLocationPicked(addressName, latLng)
                         isMapExpanded = false
