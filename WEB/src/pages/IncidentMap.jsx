@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { Layers, Droplet, AlertTriangle, MapPin } from 'lucide-react';
+import { telemetryState } from '../utils/telemetry';
 import { escapeHtml, directionsUrl, formatAccuracy, formatCoords, hasPin } from '../utils/geo';
 
 export default function IncidentMap({ stations, tanks, reports }) {
@@ -39,7 +40,8 @@ export default function IncidentMap({ stations, tanks, reports }) {
           if (!hasPin(station)) return;
 
           const primaryTank = station.tanks?.[0] || {};
-          const percent = primaryTank.current_water_percent ?? 70;
+          const quality = telemetryState(primaryTank);
+          const percent = quality.hasValue ? primaryTank.current_water_percent : '—';
           const status = primaryTank.current_status || 'NORMAL';
 
           const markerColor = (status === 'CRITICAL' || percent <= 15) ? '#EF4444' : 
@@ -78,8 +80,8 @@ export default function IncidentMap({ stations, tanks, reports }) {
               <span style="color: #64748B;">Code: ${escapeHtml(station.code)} • ${escapeHtml(station.community)}</span>
               <hr style="margin: 6px 0; border: none; border-top: 1px solid #E2E8F0;">
               <div>Primary Tank: <strong>${primaryTank.tank_id_code || 'TANK_001'}</strong></div>
-              <div>Water Level: <strong style="color: ${markerColor};">${percent}% (${primaryTank.current_water_depth_cm || 0} cm)</strong></div>
-              <div>Status: <strong>${status}</strong></div>
+              <div>Water Level: <strong style="color: ${markerColor};">${percent}% (${quality.hasValue ? primaryTank.current_water_depth_cm : '—'} cm)</strong></div>
+              <div>Status: <strong>${quality.connection} / ${status}</strong></div><div>${quality.source} · Calibration: ${quality.calibration}</div>
               <div style="font-size: 11px; color: #94A3B8; margin-top: 4px;">Hardware: ${primaryTank.device_id_code || 'ESP32_001'}</div>
             </div>
           `);

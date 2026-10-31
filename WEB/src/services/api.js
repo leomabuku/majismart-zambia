@@ -96,7 +96,7 @@ export const api = {
     };
 
     let lastError = null;
-    for (let attempt = 0; attempt < 2; attempt++) {
+    for (let attempt = 0; attempt < (method === 'GET' ? 2 : 1); attempt++) {
       try {
         const res = await fetchWithTimeout(url, options);
         if (res.status === 429 || res.status >= 502) {
@@ -122,7 +122,7 @@ export const api = {
           detail: err.message
         };
       }
-      if (attempt === 0) await sleep(RETRY_DELAY_MS);
+      if (attempt === 0 && method === 'GET') await sleep(RETRY_DELAY_MS);
     }
     console.warn(`[API] ${method} ${endpoint} failed:`, lastError?.error);
     return lastError || { success: false, error: 'Request failed' };
@@ -196,6 +196,7 @@ export const api = {
       eventSource.onopen = () => {
         setStatus('live');
         stopPolling();
+        onMessage('SYNC', null);
       };
 
       REALTIME_EVENTS.forEach((eventType) => {

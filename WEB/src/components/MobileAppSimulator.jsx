@@ -1,3 +1,4 @@
+import { telemetryState } from '../utils/telemetry';
 import React, { useState } from 'react';
 import { api } from '../services/api';
 import { 
@@ -142,7 +143,8 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
               </div>
 
               {tanks.map(t => {
-                const pct = t.current_water_percent;
+                const quality = telemetryState(t);
+                const pct = quality.hasValue ? t.current_water_percent : '—';
                 const isCrit = pct <= 15;
                 const isLow = pct <= 25;
                 const color = isCrit ? '#EF4444' : isLow ? '#F59E0B' : '#0284C7';
@@ -175,7 +177,7 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#64748B' }}>
                       <span>Depth: {t.current_water_depth_cm} cm</span>
-                      <span>Sensor: {t.device_id_code || 'ESP32'}</span>
+                      <span>Sensor: {quality.source} / {quality.connection} / Calibration {quality.calibration} · {t.device_id_code || 'ESP32'}</span>
                     </div>
                   </div>
                 );

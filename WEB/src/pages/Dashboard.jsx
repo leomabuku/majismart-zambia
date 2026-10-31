@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { packetLabel } from '../utils/telemetry';
 import StatCards from '../components/StatCards';
 import TankCard from '../components/TankCard';
 import { Radio, AlertOctagon, ArrowUpRight, Filter } from 'lucide-react';
@@ -8,8 +9,8 @@ export default function Dashboard({ summary, tanks, alerts, reports, onSelectTan
 
   const filteredTanks = tanks.filter(tank => {
     if (filter === 'NORMAL') return tank.current_status === 'NORMAL' && tank.current_water_percent > 25;
-    if (filter === 'LOW') return tank.current_status === 'LOW' || (tank.current_water_percent <= 25 && tank.current_water_percent > 15);
-    if (filter === 'CRITICAL') return tank.current_status === 'CRITICAL' || tank.current_water_percent <= 15;
+    if (filter === 'LOW') return tank.current_status === 'LOW';
+    if (filter === 'CRITICAL') return tank.current_status === 'CRITICAL';
     if (filter === 'OFFLINE') return tank.current_status === 'OFFLINE' || tank.device_status === 'OFFLINE';
     return true;
   });
@@ -21,14 +22,14 @@ export default function Dashboard({ summary, tanks, alerts, reports, onSelectTan
         <div className="telemetry-ticker" style={{ borderRadius: '12px', marginBottom: '24px' }}>
           <div className="ticker-left">
             <span className="live-pulse-dot" />
-            <span style={{ fontWeight: 600, color: '#38BDF8' }}>LIVE ESP32 PACKET:</span>
+            <span style={{ fontWeight: 600, color: '#38BDF8' }}>{packetLabel(lastTelemetry)}</span>
             <span>Device: <strong>{lastTelemetry.device_id}</strong></span>
             <span>•</span>
             <span>Tank: <strong>{lastTelemetry.tank_id}</strong></span>
             <span>•</span>
-            <span>Depth: <strong>{lastTelemetry.water_depth_cm} cm</strong></span>
+            <span>Depth: <strong>{lastTelemetry.water_depth_cm ?? '—'} cm</strong></span>
             <span>•</span>
-            <span>Level: <strong>{lastTelemetry.water_level_percent}%</strong></span>
+            <span>Level: <strong>{lastTelemetry.water_level_percent ?? '—'}%</strong></span>
           </div>
           <span style={{ fontSize: '11px', color: '#94A3B8' }}>
             {new Date(lastTelemetry.recorded_at).toLocaleTimeString()}
@@ -36,6 +37,7 @@ export default function Dashboard({ summary, tanks, alerts, reports, onSelectTan
         </div>
       )}
 
+      <p role="status" style={{ fontSize: 12, color: '#64748B' }}>Readings without source metadata are unverified. Stream connection does not verify physical hardware or tank calibration.</p>
       {/* Summary KPI Cards */}
       <StatCards summary={summary} />
 
@@ -43,7 +45,7 @@ export default function Dashboard({ summary, tanks, alerts, reports, onSelectTan
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>
           <h2 style={{ fontSize: '20px', color: '#03045E' }}>Water Storage Tanks & Reservoirs</h2>
-          <p style={{ fontSize: '13px', color: '#64748B' }}>Live level measurements transmitted via ESP32 ultrasonic telemetry</p>
+          <p style={{ fontSize: '13px', color: '#64748B' }}>Stored and incoming telemetry — check source, freshness and calibration</p>
         </div>
 
         {/* Filter Tabs */}
