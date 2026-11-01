@@ -183,8 +183,8 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks, refreshVe
             </button>
           )}
           <div>
-            <h2 style={{ fontSize: '22px', color: '#03045E' }}>{tankData.name} ({tankData.tank_id_code})</h2>
-            <p style={{ fontSize: '13px', color: '#64748B' }}>
+            <h2 style={{ fontSize: '1.375rem', color: '#03045E' }}>{tankData.name} ({tankData.tank_id_code})</h2>
+            <p style={{ fontSize: '0.875rem', color: '#64748B' }}>
               Station: {tankData.station_name || 'Central'} • Coordinates: {tankData.station_latitude}, {tankData.station_longitude}
             </p>
           </div>
@@ -227,7 +227,7 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks, refreshVe
       {/* Admin Settings Form */}
       {editMode && (
         <form onSubmit={handleSaveConfig} className="stat-card" style={{ marginBottom: '24px', border: '1px solid #38BDF8' }}>
-          <h3 style={{ fontSize: '16px', marginBottom: '16px', color: '#03045E' }}>Administrative Tank Parameters</h3>
+          <h3 style={{ fontSize: '1rem', marginBottom: '16px', color: '#03045E' }}>Administrative Tank Parameters</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
             <div className="form-group">
               <label className="form-label">Tank Name</label>
@@ -292,37 +292,37 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks, refreshVe
       {/* Metric Cards Row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
         <div className="stat-card">
-          <span style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>CURRENT WATER LEVEL</span>
-          <div style={{ fontSize: '32px', fontWeight: 800, color: '#0284C7', marginTop: '6px' }}>
+          <span style={{ fontSize: '0.875rem', color: '#64748B', fontWeight: 600 }}>CURRENT WATER LEVEL</span>
+          <div style={{ fontSize: '2rem', fontWeight: 800, color: '#0284C7', marginTop: '6px' }}>
             {tankData.current_water_percent}%
           </div>
-          <span style={{ fontSize: '13px', color: '#475569' }}>
+          <span style={{ fontSize: '0.875rem', color: '#475569' }}>
             Depth: {tankData.current_water_depth_cm} cm
           </span>
         </div>
 
         <div className="stat-card">
-          <span style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>PERIOD MINIMUM</span>
-          <div style={{ fontSize: '32px', fontWeight: 800, color: '#F59E0B', marginTop: '6px' }}>
+          <span style={{ fontSize: '0.875rem', color: '#64748B', fontWeight: 600 }}>PERIOD MINIMUM</span>
+          <div style={{ fontSize: '2rem', fontWeight: 800, color: '#F59E0B', marginTop: '6px' }}>
             {minPercent}%
           </div>
-          <span style={{ fontSize: '13px', color: '#475569' }}>Lowest recorded level</span>
+          <span style={{ fontSize: '0.875rem', color: '#475569' }}>Lowest recorded level</span>
         </div>
 
         <div className="stat-card">
-          <span style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>PERIOD MAXIMUM</span>
-          <div style={{ fontSize: '32px', fontWeight: 800, color: '#10B981', marginTop: '6px' }}>
+          <span style={{ fontSize: '0.875rem', color: '#64748B', fontWeight: 600 }}>PERIOD MAXIMUM</span>
+          <div style={{ fontSize: '2rem', fontWeight: 800, color: '#10B981', marginTop: '6px' }}>
             {maxPercent}%
           </div>
-          <span style={{ fontSize: '13px', color: '#475569' }}>Peak filling mark</span>
+          <span style={{ fontSize: '0.875rem', color: '#475569' }}>Peak filling mark</span>
         </div>
 
         <div className="stat-card">
-          <span style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>PAIRED IOT HARDWARE</span>
-          <div style={{ fontSize: '20px', fontWeight: 700, color: '#03045E', marginTop: '8px' }}>
+          <span style={{ fontSize: '0.875rem', color: '#64748B', fontWeight: 600 }}>PAIRED IOT HARDWARE</span>
+          <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#03045E', marginTop: '8px' }}>
             {tankData.device_id_code || 'ESP32_001'}
           </div>
-          <span style={{ fontSize: '12px', color: tankData.device_status === 'ONLINE' ? '#10B981' : '#64748B', fontWeight: 600 }}>
+          <span style={{ fontSize: '0.875rem', color: tankData.device_status === 'ONLINE' ? '#10B981' : '#64748B', fontWeight: 600 }}>
             ● {tankData.device_status || 'ONLINE'} (Last: {new Date(tankData.last_reading_at || Date.now()).toLocaleTimeString()})
           </span>
         </div>
@@ -332,8 +332,8 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks, refreshVe
       <div className="stat-card" style={{ marginBottom: '32px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div>
-            <h3 style={{ fontSize: '17px', color: '#03045E' }}>Telemetry Historical Trend</h3>
-            <span style={{ fontSize: '12px', color: '#64748B' }}>Ultrasonic distance-derived water depth & fill percentages</span>
+            <h3 style={{ fontSize: '1.0625rem', color: '#03045E' }}>Telemetry Historical Trend</h3>
+            <span style={{ fontSize: '0.875rem', color: '#64748B' }}>Ultrasonic distance-derived water depth & fill percentages</span>
           </div>
 
           <div style={{ display: 'flex', gap: '6px', background: '#F1F5F9', padding: '3px', borderRadius: '8px' }}>
@@ -344,7 +344,7 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks, refreshVe
                 style={{
                   padding: '4px 12px',
                   borderRadius: '6px',
-                  fontSize: '12px',
+                  fontSize: '0.875rem',
                   fontWeight: 600,
                   background: range === r ? '#FFFFFF' : 'transparent',
                   color: range === r ? '#03045E' : '#64748B',

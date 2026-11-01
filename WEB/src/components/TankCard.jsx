@@ -55,7 +55,7 @@ export default function TankCard({ tank, onClick }) {
           <div className="metric-sub">
             Depth: <strong>{tank.current_water_depth_cm ?? 0} cm</strong> / {tank.total_height_cm} cm
           </div>
-          <div className="metric-sub" style={{ fontSize: '11px', color: '#64748B' }}>
+          <div className="metric-sub" style={{ fontSize: '0.875rem', color: '#64748B' }}>
             Capacity: {(tank.capacity_liters || 10000).toLocaleString()} L
           </div>
         </div>
@@ -75,3 +75,4 @@ export default function TankCard({ tank, onClick }) {
     </div>
   );
 }
+

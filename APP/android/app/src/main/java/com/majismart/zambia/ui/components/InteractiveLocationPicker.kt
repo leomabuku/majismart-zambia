@@ -33,7 +33,7 @@ fun InteractiveLocationPicker(
         Text(
             text = "Location on Lusaka Map *",
             fontWeight = FontWeight.Bold,
-            fontSize = 14.sp,
+            fontSize = 16.sp,
             color = MajiNavy
         )
         Spacer(modifier = Modifier.height(6.dp))
@@ -73,12 +73,12 @@ fun InteractiveLocationPicker(
                             Text(
                                 text = if (selectedLocationName.isBlank()) "Tap Map or Select Below" else selectedLocationName,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
+                                fontSize = 16.sp,
                                 color = MajiNavy
                             )
                             Text(
                                 text = "Lusaka Water & Sewerage District",
-                                fontSize = 11.sp,
+                                fontSize = 14.sp,
                                 color = Color.Gray
                             )
                         }
@@ -95,7 +95,7 @@ fun InteractiveLocationPicker(
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text(if (isMapExpanded) "Close Map" else "Open Map", fontSize = 12.sp)
+                        Text(if (isMapExpanded) "Close Map" else "Open Map", fontSize = 14.sp)
                     }
                 }
 
@@ -112,7 +112,7 @@ fun InteractiveLocationPicker(
                                 currentPresetIndex = idx
                                 onLocationPicked(preset.name, preset.latLng)
                             },
-                            label = { Text(preset.name.take(16), fontSize = 11.sp) },
+                            label = { Text(preset.name.take(16), fontSize = 14.sp) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = MajiSoftBlue,
                                 selectedLabelColor = MajiNavy
@@ -145,3 +145,4 @@ fun InteractiveLocationPicker(
         }
     }
 }
+

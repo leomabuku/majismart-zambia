@@ -145,7 +145,7 @@ export default function TeamRoles() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan="5" style={{ textAlign: 'center', padding: '28px', color: '#94A3B8' }}>
+                <td colSpan="5" style={{ textAlign: 'center', padding: '28px', color: '#64748B' }}>
                   <Loader2 size={18} className="spin" /> Loading accounts…
                 </td>
               </tr>
@@ -211,7 +211,7 @@ export default function TeamRoles() {
 
             {!loading && users.length === 0 && !error && (
               <tr>
-                <td colSpan="5" style={{ textAlign: 'center', padding: '28px', color: '#94A3B8' }}>
+                <td colSpan="5" style={{ textAlign: 'center', padding: '28px', color: '#64748B' }}>
                   <Users size={18} /> No accounts yet.
                 </td>
               </tr>
@@ -228,3 +228,4 @@ export default function TeamRoles() {
     </div>
   );
 }
+

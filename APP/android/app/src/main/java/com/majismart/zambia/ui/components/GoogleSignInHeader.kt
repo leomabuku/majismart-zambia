@@ -47,6 +47,7 @@ fun GoogleSignInHeader(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(brush = Brush.verticalGradient(listOf(MajiNavy, MajiOceanBlue, MajiBlue)))
+                .statusBarsPadding()
                 .padding(20.dp)
         ) {
             Column {
@@ -55,17 +56,13 @@ fun GoogleSignInHeader(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.WaterDrop,
-                                contentDescription = null,
-                                tint = MajiLightBlue,
-                                modifier = Modifier.size(24.dp)
-                            )
+                            BrandMark(Modifier.size(32.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "SmartWater Zambia",
+                                modifier = Modifier.weight(1f),
                                 fontSize = 22.sp,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = Color.White
@@ -73,7 +70,7 @@ fun GoogleSignInHeader(
                         }
                         Text(
                             text = "Smart Water Telemetry & Community Grid",
-                            fontSize = 12.sp,
+                            fontSize = 14.sp,
                             color = MajiSky,
                             fontWeight = FontWeight.Medium
                         )
@@ -92,7 +89,7 @@ fun GoogleSignInHeader(
                             onClick = onOpenNotifications,
                             shape = CircleShape,
                             color = Color.White.copy(alpha = 0.15f),
-                            modifier = Modifier.size(42.dp)
+                            modifier = Modifier.size(48.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
@@ -157,12 +154,12 @@ fun GoogleSignInHeader(
 
                             Spacer(modifier = Modifier.width(12.dp))
 
-                            Column {
+                            Column(Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
                                         text = user?.fullName?.takeIf { it.isNotBlank() } ?: user?.email ?: "Signed in",
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 15.sp,
+                                        fontSize = 16.sp,
                                         color = Color.White,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
@@ -180,14 +177,14 @@ fun GoogleSignInHeader(
                                 }
                                 Text(
                                     text = user?.email ?: "",
-                                    fontSize = 12.sp,
+                                    fontSize = 14.sp,
                                     color = MajiSky,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
                                     text = user?.roleLabel ?: "",
-                                    fontSize = 10.sp,
+                                    fontSize = 14.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = MajiLightBlue
                                 )
@@ -213,3 +210,4 @@ fun GoogleSignInHeader(
         }
     }
 }
+

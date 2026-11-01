@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import BrandMark from './BrandMark';
 import { api } from '../services/api';
 import { 
   Smartphone, 
@@ -59,10 +60,11 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 2000 }}>
       {/* Smartphone Device Frame */}
       <div 
+        className="mobile-preview-frame"
         onClick={e => e.stopPropagation()} 
         style={{
-          width: '380px',
-          height: '760px',
+          width: 'min(380px, calc(100vw - 24px))',
+          height: 'min(760px, calc(100dvh - 24px))',
           background: '#0B0F19',
           borderRadius: '44px',
           border: '10px solid #1E293B',
@@ -85,8 +87,9 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
         }}>
           <div style={{ width: '80px', height: '14px', background: '#1E293B', borderRadius: '10px' }} />
           <button 
-            onClick={onClose} 
-            style={{ position: 'absolute', right: '14px', top: '4px', color: '#94A3B8' }}
+            onClick={onClose}
+            aria-label="Close customer app preview"
+            style={{ position: 'absolute', right: '14px', top: '4px', color: '#64748B' }}
           >
             <X size={14} />
           </button>
@@ -101,11 +104,12 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
           justifyContent: 'space-between',
           alignItems: 'center'
         }}>
-          <div>
-            <div style={{ fontSize: '11px', color: '#90E0EF', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 700 }}>
+          <div style={{ minWidth: 0 }}>
+            <BrandMark size={32} />
+            <div style={{ fontSize: '0.875rem', color: '#90E0EF', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 700 }}>
               SmartWater Customer App
             </div>
-            <div style={{ fontSize: '17px', fontWeight: 800 }}>Community Water Status</div>
+            <div style={{ fontSize: '1.0625rem', fontWeight: 800 }}>Community Water Status</div>
           </div>
           <button onClick={onReload} style={{ color: '#E0F2FE' }}>
             <RefreshCw size={16} />
@@ -118,7 +122,7 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
           background: '#F8FAFC',
           overflowY: 'auto',
           padding: '16px',
-          fontSize: '13px'
+          fontSize: '0.875rem'
         }}>
           {mobileTab === 'tanks' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -130,14 +134,14 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                fontSize: '12px',
+                fontSize: '0.875rem',
                 color: '#065F46'
               }}>
                 <CheckCircle2 size={16} color="#10B981" />
                 <span>Synchronized with Central Lusaka Telemetry</span>
               </div>
 
-              <div style={{ fontSize: '13px', fontWeight: 700, color: '#03045E', marginTop: '4px' }}>
+              <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#03045E', marginTop: '4px' }}>
                 Storage Tanks in Your Area
               </div>
 
@@ -156,10 +160,10 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
                     boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontWeight: 700, color: '#0F172A', fontSize: '13px' }}>{t.name}</span>
+                      <span style={{ fontWeight: 700, color: '#0F172A', fontSize: '0.875rem' }}>{t.name}</span>
                       <span style={{
                         fontWeight: 800,
-                        fontSize: '14px',
+                        fontSize: '1rem',
                         color: color,
                         background: isCrit ? '#FEF2F2' : isLow ? '#FFFBEB' : '#EFF6FF',
                         padding: '2px 8px',
@@ -173,7 +177,7 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
                       <div style={{ width: `${pct}%`, height: '100%', background: color }} />
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#64748B' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem', color: '#64748B' }}>
                       <span>Depth: {t.current_water_depth_cm} cm</span>
                       <span>Sensor: {t.device_id_code || 'ESP32'}</span>
                     </div>
@@ -185,7 +189,7 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
 
           {mobileTab === 'report' && (
             <div>
-              <div style={{ fontSize: '15px', fontWeight: 700, color: '#03045E', marginBottom: '12px' }}>
+              <div style={{ fontSize: '1rem', fontWeight: 700, color: '#03045E', marginBottom: '12px' }}>
                 Report a Water Issue
               </div>
 
@@ -199,15 +203,15 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
                 }}>
                   <CheckCircle2 size={32} color="#10B981" style={{ margin: '0 auto 8px' }} />
                   <div style={{ fontWeight: 700 }}>Report Submitted!</div>
-                  <div style={{ fontSize: '12px' }}>Forwarded to Lusaka dispatch queue.</div>
+                  <div style={{ fontSize: '0.875rem' }}>Forwarded to Lusaka dispatch queue.</div>
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <div>
-                    <label style={{ fontSize: '11px', fontWeight: 600, color: '#475569' }}>Issue Category</label>
+                    <label style={{ fontSize: '0.875rem', fontWeight: 600, color: '#475569' }}>Issue Category</label>
                     <select 
                       className="form-select"
-                      style={{ fontSize: '12px', padding: '8px' }}
+                      style={{ fontSize: '0.875rem', padding: '8px' }}
                       value={reportForm.category}
                       onChange={e => setReportForm({ ...reportForm, category: e.target.value })}
                     >
@@ -220,10 +224,10 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
                   </div>
 
                   <div>
-                    <label style={{ fontSize: '11px', fontWeight: 600, color: '#475569' }}>Headline / Title *</label>
+                    <label style={{ fontSize: '0.875rem', fontWeight: 600, color: '#475569' }}>Headline / Title *</label>
                     <input 
                       className="form-input"
-                      style={{ fontSize: '12px', padding: '8px' }}
+                      style={{ fontSize: '0.875rem', padding: '8px' }}
                       required
                       placeholder="e.g. Dry taps since morning"
                       value={reportForm.title}
@@ -232,10 +236,10 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
                   </div>
 
                   <div>
-                    <label style={{ fontSize: '11px', fontWeight: 600, color: '#475569' }}>Location *</label>
+                    <label style={{ fontSize: '0.875rem', fontWeight: 600, color: '#475569' }}>Location *</label>
                     <input 
                       className="form-input"
-                      style={{ fontSize: '12px', padding: '8px' }}
+                      style={{ fontSize: '0.875rem', padding: '8px' }}
                       required
                       value={reportForm.location_name}
                       onChange={e => setReportForm({ ...reportForm, location_name: e.target.value })}
@@ -243,10 +247,10 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
                   </div>
 
                   <div>
-                    <label style={{ fontSize: '11px', fontWeight: 600, color: '#475569' }}>Details *</label>
+                    <label style={{ fontSize: '0.875rem', fontWeight: 600, color: '#475569' }}>Details *</label>
                     <textarea 
                       className="form-textarea"
-                      style={{ fontSize: '12px', padding: '8px' }}
+                      style={{ fontSize: '0.875rem', padding: '8px' }}
                       rows="3"
                       required
                       placeholder="Details on households affected..."
@@ -259,7 +263,7 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
                     type="submit" 
                     disabled={submitting}
                     className="btn-primary"
-                    style={{ marginTop: '6px', padding: '10px', fontSize: '13px' }}
+                    style={{ marginTop: '6px', padding: '10px', fontSize: '0.875rem' }}
                   >
                     {submitting ? 'Transmitting Report...' : 'Submit Incident Report'}
                   </button>
@@ -270,7 +274,7 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
 
           {mobileTab === 'my_reports' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <div style={{ fontSize: '14px', fontWeight: 700, color: '#03045E' }}>
+              <div style={{ fontSize: '1rem', fontWeight: 700, color: '#03045E' }}>
                 My Submitted Incidents
               </div>
 
@@ -280,12 +284,12 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
                   padding: '12px',
                   borderRadius: '10px',
                   border: '1px solid #E2E8F0',
-                  fontSize: '12px'
+                  fontSize: '0.875rem'
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <strong style={{ color: '#03045E' }}>{r.title}</strong>
                     <span style={{
-                      fontSize: '10px',
+                      fontSize: '0.875rem',
                       fontWeight: 700,
                       padding: '2px 6px',
                       borderRadius: '4px',
@@ -295,7 +299,7 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
                       {r.status}
                     </span>
                   </div>
-                  <div style={{ color: '#64748B', fontSize: '11px', marginTop: '2px' }}>{r.location_name}</div>
+                  <div style={{ color: '#64748B', fontSize: '0.875rem', marginTop: '2px' }}>{r.location_name}</div>
                   <div style={{ marginTop: '6px', color: '#334155' }}>{r.description}</div>
                   {r.admin_notes && (
                     <div style={{
@@ -304,7 +308,7 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
                       padding: '6px 8px',
                       borderRadius: '6px',
                       color: '#0077B6',
-                      fontSize: '11px'
+                      fontSize: '0.875rem'
                     }}>
                       <strong>Admin Update:</strong> {r.admin_notes}
                     </div>
@@ -317,7 +321,8 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
 
         {/* Mobile Bottom Navigation Bar */}
         <div style={{
-          height: '60px',
+          minHeight: '72px',
+          flexShrink: 0,
           background: 'white',
           borderTop: '1px solid #E2E8F0',
           display: 'flex',
@@ -331,13 +336,13 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              color: mobileTab === 'tanks' ? '#0077B6' : '#94A3B8',
-              fontSize: '10px',
+              color: mobileTab === 'tanks' ? '#0077B6' : '#64748B',
+              fontSize: '0.875rem',
               fontWeight: 600
             }}
           >
             <Droplet size={18} />
-            <span>Water Levels</span>
+            <span>Levels</span>
           </button>
 
           <button 
@@ -346,13 +351,13 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              color: mobileTab === 'report' ? '#0077B6' : '#94A3B8',
-              fontSize: '10px',
+              color: mobileTab === 'report' ? '#0077B6' : '#64748B',
+              fontSize: '0.875rem',
               fontWeight: 600
             }}
           >
             <PlusCircle size={18} />
-            <span>Report Issue</span>
+            <span>Report</span>
           </button>
 
           <button 
@@ -361,16 +366,17 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              color: mobileTab === 'my_reports' ? '#0077B6' : '#94A3B8',
-              fontSize: '10px',
+              color: mobileTab === 'my_reports' ? '#0077B6' : '#64748B',
+              fontSize: '0.875rem',
               fontWeight: 600
             }}
           >
             <FileText size={18} />
-            <span>My Reports</span>
+            <span>History</span>
           </button>
         </div>
       </div>
     </div>
   );
 }
+

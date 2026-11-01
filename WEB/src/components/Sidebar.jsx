@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
+import BrandMark from './BrandMark';
 import {
   LayoutDashboard,
   Droplet,
@@ -13,20 +14,38 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-export default function Sidebar({ activeTab, setActiveTab, alertCount, reportCount, isLive }) {
+export default function Sidebar({ activeTab, setActiveTab, alertCount, reportCount, isLive, mobile = false, open = false, onClose }) {
   const { user, logout, isAdmin } = useAuth();
   const displayName = user?.full_name || 'Signed in';
   const roleLabel = user?.role === 'admin' ? 'Administrator' : user?.role === 'technician' ? 'Technician' : 'Customer';
   const initial = (displayName.trim()[0] || 'U').toUpperCase();
 
+  const navigation = useRef(null);
+  useEffect(() => {
+    if (!mobile || !open) return;
+    const previous = document.activeElement, oldOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const node = navigation.current;
+    const focusable = () => [...node.querySelectorAll('button:not([disabled]), a[href], input')];
+    focusable()[0]?.focus();
+    const keydown = event => {
+      if (event.key === 'Escape') { event.preventDefault(); onClose(); }
+      if (event.key === 'Tab') {
+        const items = focusable(), first = items[0], last = items[items.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }
+    };
+    node.addEventListener('keydown', keydown);
+    return () => { document.body.style.overflow = oldOverflow; node.removeEventListener('keydown', keydown); if (previous?.isConnected) previous.focus(); };
+  }, [mobile, open, onClose]);
+
   return (
-    <aside className="sidebar">
+    <aside id="primary-navigation" ref={navigation} className={`sidebar ${open ? 'is-open' : ''}`} role={mobile ? 'dialog' : undefined} aria-label="Main navigation" aria-modal={mobile && open ? true : undefined} aria-hidden={mobile && !open ? true : undefined} inert={mobile && !open ? true : undefined}>
       {/* Brand */}
       <div className="brand-section">
         <div className="brand-logo">
-          <div className="brand-icon">
-            <Droplet size={24} color="#03045E" fill="#03045E" />
-          </div>
+          <BrandMark size={44} />
           <div>
             <div className="brand-title">SmartWater</div>
             <div className="brand-subtitle">Zambia Smart Water</div>
@@ -34,6 +53,7 @@ export default function Sidebar({ activeTab, setActiveTab, alertCount, reportCou
         </div>
       </div>
 
+      <button className="navigation-close" aria-label="Close menu" onClick={onClose}>Close ×</button>
       {/* Navigation */}
       <nav className="nav-menu">
         <button
@@ -121,3 +141,4 @@ export default function Sidebar({ activeTab, setActiveTab, alertCount, reportCou
     </aside>
   );
 }
+

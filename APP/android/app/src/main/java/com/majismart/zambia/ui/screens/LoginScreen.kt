@@ -32,6 +32,7 @@ import com.google.android.gms.common.api.ApiException
 import com.majismart.zambia.auth.AuthManager
 import com.majismart.zambia.data.remote.MajiSmartApiService
 import com.majismart.zambia.ui.theme.*
+import com.majismart.zambia.ui.components.BrandMark
 import kotlinx.coroutines.launch
 
 /**
@@ -99,31 +100,22 @@ fun LoginScreen(api: MajiSmartApiService) {
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(listOf(MajiNavy, MajiOceanBlue, MajiBlue))
-            )
+            ),
+        contentAlignment = Alignment.TopCenter
     ) {
         Column(
             modifier = Modifier
+                .widthIn(max = 560.dp)
                 .fillMaxSize()
+                .systemBarsPadding()
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 22.dp, vertical = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(Modifier.height(18.dp))
 
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = Color.White,
-                modifier = Modifier.size(64.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.Default.WaterDrop,
-                        contentDescription = null,
-                        tint = MajiOceanBlue,
-                        modifier = Modifier.size(32.dp)
-                    )
-                }
-            }
+            BrandMark(Modifier.size(64.dp))
 
             Spacer(Modifier.height(14.dp))
             Text(
@@ -135,7 +127,7 @@ fun LoginScreen(api: MajiSmartApiService) {
             Text(
                 "Smart water monitoring & climate resilience",
                 color = MajiSky,
-                fontSize = 12.sp,
+                fontSize = 14.sp,
                 textAlign = TextAlign.Center
             )
 
@@ -155,7 +147,7 @@ fun LoginScreen(api: MajiSmartApiService) {
                     )
                     Text(
                         "Use your SmartWater account or continue with Google.",
-                        fontSize = 12.sp,
+                        fontSize = 14.sp,
                         color = Color(0xFF64748B)
                     )
 
@@ -179,7 +171,7 @@ fun LoginScreen(api: MajiSmartApiService) {
                                 Spacer(Modifier.width(8.dp))
                                 Text(
                                     error ?: "",
-                                    fontSize = 12.sp,
+                                    fontSize = 14.sp,
                                     color = Color(0xFFB91C1C)
                                 )
                             }
@@ -237,7 +229,7 @@ fun LoginScreen(api: MajiSmartApiService) {
                         colors = ButtonDefaults.buttonColors(containerColor = MajiBlue),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp)
+                            .heightIn(min = 48.dp)
                     ) {
                         if (busy) {
                             CircularProgressIndicator(
@@ -250,7 +242,7 @@ fun LoginScreen(api: MajiSmartApiService) {
                         Text(
                             if (busy) "Signing in…" else "Sign in",
                             fontWeight = FontWeight.SemiBold,
-                            fontSize = 14.sp
+                            fontSize = 16.sp
                         )
                     }
 
@@ -260,7 +252,7 @@ fun LoginScreen(api: MajiSmartApiService) {
                         Box(Modifier.weight(1f).height(1.dp).background(Color(0xFFE2E8F0)))
                         Text(
                             "or",
-                            fontSize = 11.sp,
+                            fontSize = 14.sp,
                             color = Color(0xFF94A3B8),
                             modifier = Modifier.padding(horizontal = 10.dp)
                         )
@@ -278,7 +270,7 @@ fun LoginScreen(api: MajiSmartApiService) {
                         shape = RoundedCornerShape(14.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp)
+                            .heightIn(min = 48.dp)
                     ) {
                         Icon(
                             Icons.Default.AccountCircle,
@@ -291,7 +283,7 @@ fun LoginScreen(api: MajiSmartApiService) {
                             "Continue with Google",
                             color = MajiNavy,
                             fontWeight = FontWeight.SemiBold,
-                            fontSize = 14.sp
+                            fontSize = 16.sp
                         )
                     }
 
@@ -300,7 +292,7 @@ fun LoginScreen(api: MajiSmartApiService) {
                         Text(
                             "Google sign-in is not configured in this build. " +
                                 "Set the googleWebClientId Gradle property.",
-                            fontSize = 10.sp,
+                            fontSize = 14.sp,
                             color = Color(0xFF94A3B8),
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth()
@@ -312,7 +304,7 @@ fun LoginScreen(api: MajiSmartApiService) {
             Spacer(Modifier.height(18.dp))
             Text(
                 "Administrator and community accounts are issued by the SmartWater team.",
-                fontSize = 11.sp,
+                fontSize = 14.sp,
                 color = MajiSky,
                 textAlign = TextAlign.Center
             )
@@ -320,3 +312,4 @@ fun LoginScreen(api: MajiSmartApiService) {
         }
     }
 }
+

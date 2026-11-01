@@ -1,6 +1,6 @@
+import BrandMark from '../components/BrandMark';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Droplet,
   Mail,
   Lock,
   Eye,
@@ -135,7 +135,7 @@ export default function LoginPage() {
       <aside className="auth-brand">
         <div className="auth-brand-top">
           <div className="auth-logo">
-            <Droplet size={30} color="#03045E" fill="#03045E" />
+            <BrandMark size={56} />
           </div>
           <div>
             <div className="auth-brand-title">SmartWater Zambia</div>
@@ -255,3 +255,4 @@ export default function LoginPage() {
     </div>
   );
 }
+
