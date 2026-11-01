@@ -17,6 +17,7 @@ if (process.env.NODE_ENV === 'production') {
 
 import { initDatabase, db, databaseMode, describeDatabaseTarget, databaseUrlWarnings, supabase } from './database/db.js';
 import { realtime } from './services/realtimeService.js';
+import { ensureOctoberDemo } from './services/octoberDemo.js';
 import { TelemetryChangeBridge } from './services/telemetryChangeBridge.js';
 import { DeviceMonitorService } from './services/deviceMonitorService.js';
 import { DemoTelemetryService } from './services/demoTelemetryService.js';
@@ -58,6 +59,11 @@ try {
   );
   process.exit(1);
 }
+
+// User-requested October training dataset: insert once, preserve existing records.
+let octoberDemo = { ready:false };
+try { const batch=await ensureOctoberDemo(db); octoberDemo={ready:true,reports:batch.reports,fictional_residents:batch.residents,provenance:batch.provenance}; }
+catch(error) { console.error('[October demo] Import unavailable:',error.message); }
 
 // Start Background Device Heartbeat Monitor
 DeviceMonitorService.start();
@@ -119,6 +125,7 @@ app.get('/api/health', async (req, res) => {
     sse_clients: realtime.getClientCount(),
     db_mode: databaseMode,
     telemetry_updates: telemetryBridge.status(),
+    october_demo: octoberDemo,
     // Lets an operator confirm the Google OAuth client id reached this instance
     // without reading the env var. Never exposes the value itself.
     google_signin: isGoogleAuthConfigured()

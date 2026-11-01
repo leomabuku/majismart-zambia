@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { db } from '../database/db.js';
 import { realtime } from '../services/realtimeService.js';
+import { OCTOBER_DEMO } from '../services/octoberDemo.js';
 
 const options = {
   confirmed_category: ['UNCLASSIFIED','COMPLETE_INTERRUPTION','REDUCED_SUPPLY','LOW_PRESSURE','MINOR_LEAK','MAJOR_LEAK','BURST_PIPE','DAMAGED_CONNECTION','UNDERGROUND_LEAK','TANK_LEAK','STRUCTURAL_DAMAGE','OVERFLOW','FAULTY_INLET','FAULTY_OUTLET','DAMAGED_VALVE','DISCOLORATION','UNUSUAL_SMELL','CONTAMINATION','SENSOR_MALFUNCTION','DEVICE_OFFLINE','INACCURATE_READING','POWER_FAILURE','COMMUNICATION_FAILURE','OTHER'],
@@ -16,6 +17,7 @@ export class CaseController {
     res.json({success:true,data:events});
   }
   static async create(req,res) {
+    if(req.params.id.startsWith(OCTOBER_DEMO.prefix)) return res.status(409).json({success:false,error:'The synthetic October snapshot is read-only.'});
     try {
       const b = req.body || {};
       for (const [key, allowed] of Object.entries(options)) if (b[key] && !allowed.includes(b[key])) return res.status(400).json({success:false,error:`Invalid ${key}`});
@@ -29,3 +31,4 @@ export class CaseController {
     } catch (err) { console.error('[Case]', err.message); res.status(500).json({success:false,error:'Unable to save case event'}); }
   }
 }
+

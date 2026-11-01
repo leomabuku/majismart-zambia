@@ -26,6 +26,29 @@ after(async () => {
   await shutdownServer();
 });
 
+test('October demo is populated once, analyzes all reports and stays out of operational views',async()=>{
+  const {db}=await import('../src/database/db.js');
+  const {ensureOctoberDemo,OCTOBER_DEMO}=await import('../src/services/octoberDemo.js');
+  const first=await ensureOctoberDemo(db),second=await ensureOctoberDemo(db);
+  assert.equal(first.reports,334);assert.deepEqual(second,first);
+  assert.equal((await db.get("SELECT COUNT(*) AS count FROM community_reports WHERE id LIKE ?",OCTOBER_DEMO.prefix+'%')).count,334);
+  const admin=await login(ADMIN_EMAIL,ADMIN_PASSWORD);
+  const response=await fetch(`${BASE_URL}/api/analytics/reports?dataset=october-demo&from=2026-10-01&to=2026-10-31`,{headers:authed(admin.token)});
+  assert.equal(response.status,200);
+  const {data}=await response.json();assert.equal(data.total,334);assert.equal(data.records.length,334);assert.equal(data.days.length,31);
+  assert.ok(data.records.every(r=>r.provenance==='SIMULATED'));
+  const live=await (await fetch(`${BASE_URL}/api/analytics/reports`,{headers:authed(admin.token)})).json();
+  assert.ok(live.data.records.every(r=>!r.id.startsWith(OCTOBER_DEMO.prefix)));
+  const reports=await (await fetch(`${BASE_URL}/api/reports?limit=500`,{headers:authed(admin.token)})).json();
+  assert.ok(reports.data.every(r=>!r.id.startsWith(OCTOBER_DEMO.prefix)));
+  assert.equal((await fetch(`${BASE_URL}/api/reports/${OCTOBER_DEMO.prefix}0001`)).status,404);
+  assert.equal((await fetch(`${BASE_URL}/api/analytics/reports?dataset=october-demo`)).status,401);
+  assert.equal((await fetch(`${BASE_URL}/api/analytics/reports?dataset=bad`,{headers:authed(admin.token)})).status,400);
+  assert.equal((await fetch(`${BASE_URL}/api/reports/${OCTOBER_DEMO.prefix}0001/status`,{method:'PUT',headers:authed(admin.token),body:JSON.stringify({status:'RESOLVED'})})).status,409);
+  assert.equal((await fetch(`${BASE_URL}/api/reports/${OCTOBER_DEMO.prefix}0001/case`,{method:'POST',headers:authed(admin.token),body:JSON.stringify({notes:'Must not alter the snapshot'})})).status,409);
+  const health=await (await fetch(`${BASE_URL}/api/health`)).json();assert.equal(health.october_demo.ready,true);
+});
+
 // ---------------------------------------------------------------------------
 // Admin-only user directory and role management
 // ---------------------------------------------------------------------------
@@ -274,3 +297,4 @@ test('structured customer submission preserves reported details separately from 
   const analytics=await (await fetch(`${BASE_URL}/api/analytics/reports?category=LOW_PRESSURE`,{headers:authed(admin)})).json();
   assert.ok(analytics.success); assert.ok(analytics.data.categories.some(r=>r.label==='LOW_PRESSURE' && Number(r.count)>=1));
 });
+

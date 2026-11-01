@@ -43,7 +43,8 @@ export class StationController {
           count(*) as total_reports,
           sum(CASE WHEN status IN ('SUBMITTED', 'ACKNOWLEDGED', 'IN_PROGRESS') THEN 1 ELSE 0 END) as open_reports,
           sum(CASE WHEN status = 'RESOLVED' THEN 1 ELSE 0 END) as resolved_reports
-        FROM community_reports
+        FROM community_reports r
+        WHERE NOT EXISTS (SELECT 1 FROM report_submission_details d WHERE d.report_id=r.id AND d.provenance IN ('SIMULATED','TEST'))
       `).get();
 
       const activeAlertsCount = (await db.prepare("SELECT count(*) as count FROM water_alerts WHERE status = 'ACTIVE'").get()).count;
@@ -267,3 +268,4 @@ export class StationController {
     }
   }
 }
+
