@@ -1,5 +1,7 @@
 # MajiSmart Zambia 🇿🇲
 
+> Telemetry contract and setup have changed. See [integrated telemetry notes](docs/INTEGRATED_TELEMETRY.md); older examples below describe the legacy workflow.
+
 ### IoT-Enabled Smart Water Monitoring and Climate Resilience System
 
 MajiSmart Zambia is a production-minded IoT water management and civic incident reporting platform developed for Zambian water utilities and community members. It connects ultrasonic-equipped ESP32 hardware devices, a shared REST/Realtime backend, an administrative web dashboard, and a native Android customer application.
@@ -131,6 +133,19 @@ node FIRMWARE/simulator/iot_simulator.js --mode=critical
 ```
 
 ---
+
+## 🚀 Deployment
+
+The production topology is a Cloudflare Pages dashboard + a single always-on container for the shared API + Supabase Postgres. Full reasoning, cost tables, environment variables, and a step-by-step runbook live in **[DEPLOYMENT.md](./DEPLOYMENT.md)**. The current free-tier setup (Cloudflare Pages + Render Free + Supabase Free) is a click-by-click checklist in **[DEPLOY_FREE_TIER.md](./DEPLOY_FREE_TIER.md)**.
+
+Short version:
+
+- Web (`WEB/`) → Cloudflare Pages, root directory `WEB`, output `dist`, `VITE_API_BASE_URL=https://<api-host>/api`
+- API (`BACKEND/`) → Render Free ([`render.yaml`](./render.yaml)), upgrade path [Fly.io](./fly.toml) / Render Starter; it needs a long-running process (device monitor + SSE), so serverless is not an option
+- Database → Supabase project `majismart-zambia` (`eu-west-1`), schema in `supabase/migrations`, applied with `supabase db push` (`AUTO_MIGRATE=false` in production)
+- Both clients keep pointing at the same API, so the Android app and dashboard stay in sync
+
+Node 24 is required in CI and containers (local dev uses `node:sqlite`).
 
 ## 🔒 Security & Roles
 - **Administrator and customer seed passwords** are supplied through backend environment variables and must not be committed.

@@ -1,7 +1,39 @@
 import { db } from '../database/db.js';
+import { parseStoredTimestamp } from '../lib/timestamps.js';
 import crypto from 'node:crypto';
+import { classifyCondition } from '../lib/tankCondition.js';
+
+const visibleTank = req => req.user?.role === 'admin' ? ['1=1', []] : ['(i.owner_id IS NULL OR i.owner_id = ?)', [req.user?.id || null]];
+
+// A tank is "reporting" when its newest reading is recent, regardless of which
+// path absorbed it. Field units that post to the legacy Supabase edge function
+// never touch monitoring_devices, so that row can say OFFLINE while a reading
+// arrives every few seconds; trusting the row alone hides live data.
+const REPORTING_WINDOW_MS = 10 * 60 * 1000;
+
+function markReportingTanks(rows) {
+  const now = Date.now();
+  return rows.map((row) => {
+    const lastReading = parseStoredTimestamp(row.last_reading_at);
+    const reporting = Number.isFinite(lastReading) && (now - lastReading) <= REPORTING_WINDOW_MS;
+    if (!reporting) return { ...row, reading_fresh: false };
+    return {
+      ...row,
+      reading_fresh: true,
+      device_status: row.device_status === 'ERROR' ? row.device_status : 'ONLINE'
+    };
+  });
+}
 
 export class StationController {
+  static async getMyTanks(req, res) {
+    try {
+      const tanks = await db.prepare(`SELECT t.*, i.current_condition, i.current_volume_l, i.installation_status, i.provenance, s.name AS station_name, d.device_id_code, d.status AS device_status, d.last_seen_at AS device_last_seen_at FROM tanks t JOIN tank_installations i ON i.tank_id = t.id LEFT JOIN monitoring_stations s ON s.id = t.station_id LEFT JOIN monitoring_devices d ON d.tank_id = t.id WHERE i.owner_id = ? ORDER BY t.name`).all(req.user.id);
+      const reporting = markReportingTanks(tanks);
+      res.json({success:true,data:reporting,count:reporting.length});
+    } catch (err) { console.error('[My tanks]',err.message); res.status(500).json({success:false,error:'Unable to load tanks'}); }
+  }
+
   /**
    * GET /api/dashboard/summary
    * Provides high-level metrics for dashboard cards
@@ -9,9 +41,9 @@ export class StationController {
   static async getSummary(req, res) {
     try {
       const stationCount = (await db.prepare("SELECT count(*) as count FROM monitoring_stations WHERE status = 'ACTIVE'").get()).count;
-      
+
       const tankStats = await db.prepare(`
-        SELECT 
+        SELECT
           count(*) as total_tanks,
           sum(CASE WHEN current_status = 'NORMAL' THEN 1 ELSE 0 END) as normal_tanks,
           sum(CASE WHEN current_status = 'LOW' THEN 1 ELSE 0 END) as low_tanks,
@@ -20,20 +52,26 @@ export class StationController {
         FROM tanks
       `).get();
 
-      const deviceStats = await db.prepare(`
-        SELECT 
-          count(*) as total_devices,
-          sum(CASE WHEN status = 'ONLINE' THEN 1 ELSE 0 END) as online_devices,
-          sum(CASE WHEN status = 'OFFLINE' THEN 1 ELSE 0 END) as offline_devices
-        FROM monitoring_devices
-      `).get();
+      // Device connectivity uses the same "did a reading arrive recently" rule as
+      // the cards, so a unit posting straight to Supabase is not counted offline.
+      const deviceRows = await db.prepare(`
+        SELECT d.id, d.device_id_code, d.status, d.last_seen_at, t.last_reading_at
+        FROM monitoring_devices d
+        LEFT JOIN tanks t ON t.id = d.tank_id
+      `).all();
+      const deviceStats = { total_devices: deviceRows.length, online_devices: 0, offline_devices: 0 };
+      for (const device of markReportingTanks(deviceRows)) {
+        if (device.reading_fresh || device.status === 'ONLINE') deviceStats.online_devices += 1;
+        else deviceStats.offline_devices += 1;
+      }
 
       const reportStats = await db.prepare(`
-        SELECT 
+        SELECT
           count(*) as total_reports,
           sum(CASE WHEN status IN ('SUBMITTED', 'ACKNOWLEDGED', 'IN_PROGRESS') THEN 1 ELSE 0 END) as open_reports,
           sum(CASE WHEN status = 'RESOLVED' THEN 1 ELSE 0 END) as resolved_reports
-        FROM community_reports
+        FROM community_reports r
+        WHERE NOT EXISTS (SELECT 1 FROM report_submission_details d WHERE d.report_id=r.id AND d.provenance IN ('SIMULATED','TEST'))
       `).get();
 
       const activeAlertsCount = (await db.prepare("SELECT count(*) as count FROM water_alerts WHERE status = 'ACTIVE'").get()).count;
@@ -66,13 +104,16 @@ export class StationController {
     try {
       const stations = await db.prepare('SELECT * FROM monitoring_stations ORDER BY name ASC').all();
 
+      const [visibility, viewer] = visibleTank(req);
       const populated = await Promise.all(stations.map(async (station) => {
-        const tanks = await db.prepare(`
+        const [visibility, viewer] = visibleTank(req);
+      const tanks = await db.prepare(`
           SELECT t.*, d.device_id_code, d.status as device_status, d.last_seen_at
           FROM tanks t
           LEFT JOIN monitoring_devices d ON t.id = d.tank_id
-          WHERE t.station_id = ?
-        `).all(station.id);
+          LEFT JOIN tank_installations i ON i.tank_id = t.id
+          WHERE t.station_id = ? AND ${visibility}
+        `).all(station.id, ...viewer);
 
         return { ...station, tanks };
       }));
@@ -99,12 +140,13 @@ export class StationController {
         SELECT t.*, d.device_id_code, d.status as device_status, d.last_seen_at
         FROM tanks t
         LEFT JOIN monitoring_devices d ON t.id = d.tank_id
-        WHERE t.station_id = ?
-      `).all(station.id);
+        LEFT JOIN tank_installations i ON i.tank_id = t.id
+        WHERE t.station_id = ? AND ${visibility}
+      `).all(station.id, ...viewer);
 
       const recentReports = await db.prepare(`
-        SELECT * FROM community_reports 
-        WHERE station_id = ? 
+        SELECT id, category, title, description, location_name, latitude, longitude, status, created_at FROM community_reports
+        WHERE station_id = ? AND status != 'REJECTED'
         ORDER BY created_at DESC LIMIT 5
       `).all(station.id);
 
@@ -126,9 +168,10 @@ export class StationController {
    */
   static async getAllTanks(req, res) {
     try {
+      const [visibility, viewer] = visibleTank(req);
       const tanks = await db.prepare(`
-        SELECT 
-          t.*,
+        SELECT
+          t.*, i.current_volume_l, i.current_condition, i.installation_status, i.provenance, i.latitude, i.longitude,
           s.name as station_name,
           s.code as station_code,
           s.community as station_community,
@@ -141,10 +184,13 @@ export class StationController {
         FROM tanks t
         LEFT JOIN monitoring_stations s ON t.station_id = s.id
         LEFT JOIN monitoring_devices d ON t.id = d.tank_id
+        LEFT JOIN tank_installations i ON i.tank_id = t.id
+        WHERE ${visibility}
         ORDER BY t.name ASC
-      `).all();
+      `).all(...viewer);
 
-      return res.json({ success: true, count: tanks.length, data: tanks });
+      const reporting = markReportingTanks(tanks);
+      return res.json({ success: true, count: reporting.length, data: reporting });
     } catch (err) {
       return res.status(500).json({ success: false, error: 'Internal Server Error' });
     }
@@ -156,9 +202,10 @@ export class StationController {
   static async getTankById(req, res) {
     try {
       const { id } = req.params;
+      const [visibility, viewer] = visibleTank(req);
       const tank = await db.prepare(`
-        SELECT 
-          t.*,
+        SELECT
+          t.*, i.current_volume_l, i.current_condition, i.installation_status, i.provenance, i.latitude, i.longitude,
           s.name as station_name,
           s.code as station_code,
           s.community as station_community,
@@ -171,8 +218,9 @@ export class StationController {
         FROM tanks t
         LEFT JOIN monitoring_stations s ON t.station_id = s.id
         LEFT JOIN monitoring_devices d ON t.id = d.tank_id
-        WHERE t.id = ? OR t.tank_id_code = ?
-      `).get(id, id);
+        LEFT JOIN tank_installations i ON i.tank_id = t.id
+        WHERE (t.id = ? OR t.tank_id_code = ?) AND ${visibility}
+      `).get(id, id, ...viewer);
 
       if (!tank) {
         return res.status(404).json({ success: false, error: 'Tank not found' });
@@ -193,10 +241,11 @@ export class StationController {
         ORDER BY created_at DESC
       `).all(tank.id);
 
+      const [fresh] = markReportingTanks([tank]);
       return res.json({
         success: true,
         data: {
-          ...tank,
+          ...fresh,
           recent_readings: recentReadings.reverse(),
           alerts
         }
@@ -220,9 +269,16 @@ export class StationController {
         return res.status(404).json({ success: false, error: 'Tank not found' });
       }
 
+      const installation = await db.prepare('SELECT * FROM tank_installations WHERE tank_id = ?').get(tank.id);
+      if (installation) {
+        if (total_height_cm != null || usable_height_cm != null || capacity_liters != null) return res.status(400).json({success:false,error:'Installed tank geometry cannot be changed via legacy settings; recalibration is required'});
+        const original = await db.prepare('SELECT * FROM tanks WHERE id = ?').get(tank.id);
+        try { classifyCondition(50, null, { critical:Number(critical_threshold_percent ?? original.critical_threshold_percent), low:Number(low_threshold_percent ?? original.low_threshold_percent), warning:Number(installation.warning_threshold), hysteresis:Number(installation.hysteresis) }); }
+        catch { return res.status(400).json({success:false,error:'Invalid threshold configuration'}); }
+      }
       await db.prepare(`
         UPDATE tanks
-        SET 
+        SET
           name = COALESCE(?, name),
           total_height_cm = COALESCE(?, total_height_cm),
           usable_height_cm = COALESCE(?, usable_height_cm),
@@ -241,3 +297,4 @@ export class StationController {
     }
   }
 }
+

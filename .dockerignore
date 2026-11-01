@@ -1,0 +1,20 @@
+node_modules
+**/node_modules
+.git
+.github
+.idea
+.vscode
+WEB/dist
+APP
+FIRMWARE
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+**/.env
+**/.env.*
+!**/.env.example
+.gitignore
+README.md
+ARCHITECTURE.md
+DEPLOYMENT.md
+new prompt.txt

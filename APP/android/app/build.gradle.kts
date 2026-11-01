@@ -14,10 +14,27 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
+        // Shared backend. Override per build, e.g.:
+        //   ./gradlew assembleDebug -PapiBaseUrl=http://10.0.2.2:5000/
+        //   ./gradlew assembleRelease -PapiBaseUrl=https://majismart-api.onrender.com/
+        // Defaults to the deployed Render service; falls back to the emulator loopback.
         buildConfigField(
             "String",
             "API_BASE_URL",
-            "\"${project.findProperty("apiBaseUrl") ?: "http://10.0.2.2:5000/"}\""
+            "\"${project.findProperty("apiBaseUrl") ?: "https://majismart-api.onrender.com/"}\""
+        )
+        // Web OAuth client id from Google Cloud Console. Used as the "server client id"
+        // for Google Sign-In so the ID token audience matches the API allow-list,
+        // and inlined into the web dashboard build the same way.
+        // A Google OAuth *client id* is public (it ships inside the APK by design;
+        // the protection is the package name + SHA-1 pairing in Google Cloud).
+        // The project default lets a fresh clone sign in with Google without any
+        // Gradle flags; override with -PgoogleWebClientId=... to use another client.
+        val googleClientIdProperty = project.findProperty("googleWebClientId") as String?
+        buildConfigField(
+            "String",
+            "GOOGLE_WEB_CLIENT_ID",
+            "\"${googleClientIdProperty ?: "66951276979-66l1j0kdakebc5hnjfjujb8ua2th125u.apps.googleusercontent.com"}\""
         )
         manifestPlaceholders["MAPS_API_KEY"] = project.findProperty("mapsApiKey") ?: "YOUR_GOOGLE_MAPS_API_KEY"
 
@@ -47,9 +64,6 @@ android {
         compose = true
         buildConfig = true
     }
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.8"
-    }
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -60,6 +74,7 @@ android {
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.4")
     implementation("androidx.activity:activity-compose:1.9.1")
     
     // Jetpack Compose & Material 3
@@ -91,3 +106,4 @@ dependencies {
     // Coil Image Loading
     implementation("io.coil-kt:coil-compose:2.6.0")
 }
+

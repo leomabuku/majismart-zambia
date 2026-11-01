@@ -31,9 +31,9 @@ fun WaterGauge(
     tank: Tank,
     modifier: Modifier = Modifier
 ) {
-    val percent = tank.currentWaterPercent.coerceIn(0, 100)
+    val percent = tank.currentWaterPercent.coerceIn(0f, 100f)
     val isCritical = percent <= 15
-    val isLow = percent in 16..25
+    val isLow = percent > 15f && percent <= 25f
     val statusColor = if (isCritical) MajiRed else if (isLow) MajiAmber else MajiEmerald
     val statusBg = if (isCritical) MajiRedLight else if (isLow) MajiAmberLight else MajiGreenLight
 
@@ -85,7 +85,7 @@ fun WaterGauge(
                     }
                     Text(
                         text = "${tank.tankIdCode} • ${tank.stationName ?: "Lusaka Grid"}",
-                        fontSize = 12.sp,
+                        fontSize = 14.sp,
                         color = Color.Gray
                     )
                 }
@@ -109,7 +109,7 @@ fun WaterGauge(
                             text = "${tank.currentWaterPercent}%",
                             color = statusColor,
                             fontWeight = FontWeight.ExtraBold,
-                            fontSize = 15.sp
+                            fontSize = 16.sp
                         )
                     }
                 }
@@ -185,7 +185,7 @@ fun WaterGauge(
                     Column {
                         Text(
                             text = "Live Water Volume",
-                            fontSize = 11.sp,
+                            fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (animatedPercent > 0.4f) Color.White else MajiNavy
                         )
@@ -203,7 +203,7 @@ fun WaterGauge(
                     ) {
                         Text(
                             text = "Cap: ${tank.capacityLiters} L",
-                            fontSize = 12.sp,
+                            fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = MajiNavy,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
@@ -230,7 +230,7 @@ fun WaterGauge(
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = "Depth: ${tank.currentWaterDepthCm} / ${tank.totalHeightCm} cm",
-                        fontSize = 12.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Medium,
                         color = MajiTextPrimary
                     )
@@ -246,7 +246,7 @@ fun WaterGauge(
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = tank.deviceIdCode ?: "ESP32_IOT",
-                        fontSize = 12.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = MajiPurple
                     )
@@ -255,3 +255,4 @@ fun WaterGauge(
         }
     }
 }
+

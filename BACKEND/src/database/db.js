@@ -4,7 +4,13 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
-import { Pool } from 'pg';
+import { Pool, types } from 'pg';
+
+// Postgres returns NUMERIC and BIGINT as strings to avoid precision loss, while SQLite
+// returns numbers. Controllers and the UI were written against SQLite values, so parse
+// them here instead of sprinkling Number() conversions everywhere.
+types.setTypeParser(1700, (value) => (value === null ? null : Number(value))); // NUMERIC
+types.setTypeParser(20, (value) => (value === null ? null : Number(value))); // INT8 / COUNT(*)
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,9 +35,88 @@ const connectionString = process.env.DATABASE_URL || process.env.SUPABASE_DB_URL
 if (dbMode === 'supabase' && !connectionString) {
   throw new Error('DATABASE_URL (or SUPABASE_DB_URL) is required when DB_MODE=supabase');
 }
+// pg-connection-string maps `sslmode=require` to verify-full semantics, and values parsed
+// from the connection string override an explicit `ssl` option. Supabase's Supavisor
+// pooler presents a chain that Node does not trust ("self-signed certificate in
+// certificate chain"), so TLS was failing even though the API asked for
+// rejectUnauthorized: false. Strip the ssl parameters from the URI and decide TLS
+// ourselves: encrypted always in production, full verification only when explicitly
+// requested with sslmode=verify-full / verify-ca.
+function splitSslParams(rawConnectionString) {
+  const queryIndex = rawConnectionString.indexOf('?');
+  if (queryIndex === -1) return { connectionString: rawConnectionString, sslmode: null };
+
+  const base = rawConnectionString.slice(0, queryIndex);
+  const params = new URLSearchParams(rawConnectionString.slice(queryIndex + 1));
+  const sslmode = (params.get('sslmode') || '').toLowerCase() || null;
+  params.delete('sslmode');
+  params.delete('uselibpqcompat');
+  const rest = params.toString();
+
+  return { connectionString: rest ? `${base}?${rest}` : base, sslmode };
+}
+
+const parsedConnection = connectionString ? splitSslParams(connectionString) : null;
+const sslmode = parsedConnection?.sslmode || null;
+const verifyCertificate = sslmode === 'verify-full' || sslmode === 'verify-ca';
+const useTls = Boolean(parsedConnection) && (process.env.NODE_ENV === 'production' || Boolean(sslmode));
+
 export const pool = dbMode === 'supabase'
-  ? new Pool({ connectionString, max: Number(process.env.DB_POOL_MAX || 10), ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined })
+  ? new Pool({
+      connectionString: parsedConnection.connectionString,
+      max: Number(process.env.DB_POOL_MAX || 10),
+      idleTimeoutMillis: Number(process.env.DB_IDLE_TIMEOUT_MS || 30000),
+      connectionTimeoutMillis: Number(process.env.DB_CONNECT_TIMEOUT_MS || 10000),
+      statement_timeout: Number(process.env.DB_STATEMENT_TIMEOUT_MS || 15000),
+      application_name: 'majismart-api',
+      ssl: useTls ? { rejectUnauthorized: verifyCertificate } : undefined
+    })
   : null;
+
+// Supabase's Supavisor pooler drops idle backends after a few minutes. Without this
+// listener an idle-client error is an unhandled 'error' event and crashes the API.
+pool?.on('error', (err) => {
+  console.error('[Database] Idle client error:', err.message);
+});
+
+// Human-readable target for startup logs and failure handling. Never includes the
+// password, so it is safe to print in Render/Fly logs.
+export function describeDatabaseTarget() {
+  if (!pool) return `sqlite (${dbPath})`;
+  try {
+    const url = new URL(connectionString);
+    return `${url.username}@${url.hostname}:${url.port || '5432'}${url.pathname}`;
+  } catch {
+    return 'DATABASE_URL could not be parsed as a URL';
+  }
+}
+
+// Catches the mistakes that account for almost every failed first deploy.
+export function databaseUrlWarnings() {
+  if (!pool) return [];
+
+  let url;
+  try {
+    url = new URL(connectionString);
+  } catch {
+    return ['DATABASE_URL is not a valid URI. It must start with postgresql:// and contain no unencoded spaces.'];
+  }
+
+  const warnings = [];
+  if (/^db\..*\.supabase\.co$/i.test(url.hostname)) {
+    warnings.push(
+      'DATABASE_URL points at the direct Supabase host (IPv6-only). Render has no IPv6 egress - '
+      + 'use the Transaction pooler string (aws-0-<region>.pooler.supabase.com:6543).'
+    );
+  }
+  if (url.port === '5432') {
+    warnings.push('DATABASE_URL uses port 5432 (direct/session). The Transaction pooler listens on 6543.');
+  }
+  if (!url.password) {
+    warnings.push('DATABASE_URL has no password segment - did you forget to replace [YOUR-PASSWORD]?');
+  }
+  return warnings;
+}
 export const databaseMode = dbMode;
 
 function postgresPlaceholders(sql) {
@@ -40,6 +125,17 @@ function postgresPlaceholders(sql) {
     .replace(/datetime\('now'\s*,\s*'-(\d+)\s+hours?'\)/gi, "NOW() - INTERVAL '$1 hours'")
     .replace(/datetime\('now'\)/gi, 'NOW()')
     .replace(/\?/g, () => `$${++index}`);
+}
+
+// Serialize SQLite operations so no other request can enter an asynchronous
+// transaction while it is open. PostgreSQL uses a dedicated pooled client.
+let sqliteQueue = Promise.resolve();
+async function withSqliteLock(work) {
+  const previous = sqliteQueue;
+  let release;
+  sqliteQueue = new Promise(resolve => { release = resolve; });
+  await previous;
+  try { return await work(); } finally { release(); }
 }
 
 export const db = {
@@ -52,18 +148,27 @@ export const db = {
   },
   async all(sql, ...params) {
     if (pool) return (await pool.query(postgresPlaceholders(sql), params)).rows;
-    return sqlite.prepare(sql).all(...params);
+    return withSqliteLock(() => sqlite.prepare(sql).all(...params));
   },
   async get(sql, ...params) {
     if (pool) return (await pool.query(postgresPlaceholders(sql), params)).rows[0];
-    return sqlite.prepare(sql).get(...params);
+    return withSqliteLock(() => sqlite.prepare(sql).get(...params));
   },
   async run(sql, ...params) {
     if (pool) return pool.query(postgresPlaceholders(sql), params);
-    return sqlite.prepare(sql).run(...params);
+    return withSqliteLock(() => sqlite.prepare(sql).run(...params));
   },
   async transaction(work) {
-    if (!pool) return work(db);
+    if (!pool) return withSqliteLock(async () => {
+      sqlite.exec('BEGIN');
+      const tx = {
+        all: async (sql, ...params) => sqlite.prepare(sql).all(...params),
+        get: async (sql, ...params) => sqlite.prepare(sql).get(...params),
+        run: async (sql, ...params) => sqlite.prepare(sql).run(...params)
+      };
+      try { const result = await work(tx); sqlite.exec('COMMIT'); return result; }
+      catch (err) { sqlite.exec('ROLLBACK'); throw err; }
+    });
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -114,16 +219,43 @@ export async function initDatabase() {
     `);
 
     if (schemaState.rows[0].table_count < 9) {
-      await pool.query('BEGIN');
-      try {
-        await pool.query(fs.readFileSync(migrationPath, 'utf8'));
-        await pool.query('COMMIT');
-      } catch (error) {
-        await pool.query('ROLLBACK');
-        throw error;
+      const autoMigrate = process.env.AUTO_MIGRATE === 'true'
+        || process.env.NODE_ENV !== 'production';
+
+      if (!autoMigrate) {
+        // Production guardrail: schema changes belong in a reviewed migration step
+        // (`supabase db push` in CI), not in application boot. Two instances booting at
+        // once would race on DDL, and the runtime role should not own the schema.
+        console.error(
+          '[MajiSmart] Database schema is incomplete and AUTO_MIGRATE is disabled. '
+          + 'Run `supabase db push` against this project before starting the API.'
+        );
+      } else {
+        if (!fs.existsSync(migrationPath)) {
+          throw new Error(
+            `Database migration file not found at ${migrationPath}. `
+            + 'Copy the supabase/migrations directory into the image or run migrations separately.'
+          );
+        }
+        await pool.query('BEGIN');
+        try {
+          await pool.query(fs.readFileSync(migrationPath, 'utf8'));
+          await pool.query('COMMIT');
+        } catch (error) {
+          await pool.query('ROLLBACK');
+          throw error;
+        }
       }
     }
-    await seedPostgresData();
+
+    // Seeding on every boot would run ~45 statements each time a free-tier
+    // instance wakes up. Only seed an actually empty database.
+    const seeded = await pool.query('SELECT count(*)::int AS profile_count FROM public.profiles');
+    if (seeded.rows[0].profile_count === 0) {
+      await seedPostgresData();
+    } else {
+      console.log('[DB] Supabase baseline data already present, skipping seed');
+    }
     return;
   }
   sqlite.exec(`
@@ -138,6 +270,9 @@ export async function initDatabase() {
       phone_number TEXT,
       community TEXT,
       district TEXT,
+      google_sub TEXT,
+      avatar_url TEXT,
+      auth_provider TEXT NOT NULL DEFAULT 'password',
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -230,6 +365,8 @@ export async function initDatabase() {
       location_name TEXT NOT NULL,
       latitude REAL,
       longitude REAL,
+      location_accuracy_m REAL,
+      location_source TEXT,
       station_id TEXT REFERENCES monitoring_stations(id) ON DELETE SET NULL,
       image_url TEXT,
       status TEXT NOT NULL DEFAULT 'SUBMITTED' CHECK(status IN ('SUBMITTED', 'ACKNOWLEDGED', 'IN_PROGRESS', 'RESOLVED', 'REJECTED')),
@@ -257,10 +394,60 @@ export async function initDatabase() {
     );
   `);
 
+  // Lightweight in-file migration: CREATE TABLE IF NOT EXISTS never adds columns to
+  // an existing SQLite file, so older dev databases are patched here.
+  ensureSqliteProfileColumns();
+
+  ensureSqliteReportColumns();
+
+  // Apply idempotent local installation migration to existing SQLite databases.
+  sqlite.exec(fs.readFileSync(path.resolve(__dirname, '../../database/migrations/002_installation.sql'), 'utf8'));
+
+  sqlite.exec(fs.readFileSync(path.resolve(__dirname, '../../database/migrations/003_report_case.sql'), 'utf8'));
+
+  sqlite.exec(fs.readFileSync(path.resolve(__dirname, '../../database/migrations/004_calibration.sql'), 'utf8'));
+  sqlite.exec(fs.readFileSync(path.resolve(__dirname, '../../database/migrations/005_sensor_faults.sql'), 'utf8'));
+  sqlite.exec(fs.readFileSync(path.resolve(__dirname, '../../database/migrations/006_report_details.sql'), 'utf8'));
+
   // Seed default data if profiles table is empty
   seedDefaultData();
 }
 
+// Adds the geolocation columns to a pre-existing SQLite database.
+function ensureSqliteReportColumns() {
+  const existing = new Set(sqlite.prepare('PRAGMA table_info(community_reports)').all().map((c) => c.name));
+  const additions = [
+    ['location_accuracy_m', 'REAL'],
+    ['location_source', 'TEXT']
+  ];
+  for (const [name, type] of additions) {
+    if (!existing.has(name)) {
+      sqlite.exec(`ALTER TABLE community_reports ADD COLUMN ${name} ${type}`);
+      console.log(`[DB] Added community_reports.${name} column`);
+    }
+  }
+}
+
+// Adds the Google sign-in columns to a pre-existing SQLite database.
+function ensureSqliteProfileColumns() {
+  const existing = new Set(sqlite.prepare('PRAGMA table_info(profiles)').all().map((c) => c.name));
+  const additions = [
+    ['google_sub', 'TEXT'],
+    ['avatar_url', 'TEXT'],
+    ['auth_provider', "TEXT NOT NULL DEFAULT 'password'"]
+  ];
+  for (const [name, type] of additions) {
+    if (!existing.has(name)) {
+      sqlite.exec(`ALTER TABLE profiles ADD COLUMN ${name} ${type}`);
+      console.log(`[DB] Added profiles.${name} column`);
+    }
+  }
+}
+
+// Seeds the Supabase/PostgreSQL database with the same baseline the SQLite
+// development database gets, so the deployed dashboard and mobile app are not
+// empty on first boot. Every statement is idempotent (ON CONFLICT DO NOTHING),
+// because this runs on every container start.
 async function seedPostgresData() {
   const adminPassword = process.env.SEED_ADMIN_PASSWORD || (process.env.NODE_ENV === 'production' ? '' : 'AdminPassword2026!');
   const customerPassword = process.env.SEED_CUSTOMER_PASSWORD || (process.env.NODE_ENV === 'production' ? '' : 'CustomerPass2026!');
@@ -273,33 +460,76 @@ async function seedPostgresData() {
     throw new Error('IOT_API_KEY is required when seeding PostgreSQL devices.');
   }
 
-  await db.transaction(async (tx) => {
-    await tx.run(`
-      INSERT INTO profiles (id, email, password_hash, full_name, role, phone_number, community, district)
-      VALUES (?, ?, ?, ?, 'admin', ?, ?, ?)
-      ON CONFLICT (email) DO NOTHING
-    `, 'usr-admin-01', 'admin@majismart.zm', hashPassword(adminPassword), 'Mulenga Banda (Administrator)', '+260971234567', 'Kabulonga', 'Lusaka');
-    await tx.run(`
-      INSERT INTO profiles (id, email, password_hash, full_name, role, phone_number, community, district)
-      VALUES (?, ?, ?, ?, 'customer', ?, ?, ?)
-      ON CONFLICT (email) DO NOTHING
-    `, 'usr-cust-01', 'mwape@community.zm', hashPassword(customerPassword), 'Mwape Tembo', '+260967890123', 'Chilenje', 'Lusaka');
+  const apiKeyHash = hashPassword(apiKey);
 
-    await tx.run(`
-      INSERT INTO monitoring_stations (id, code, name, community, district, province, latitude, longitude, status, description)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?)
-      ON CONFLICT (code) DO NOTHING
-    `, 'st-001', 'ST-LUS-001', 'Lusaka Central Water Hub', 'CBD / Cairo Road', 'Lusaka', 'Lusaka Province', -15.416667, 28.283333, 'Primary distribution reservoir');
-    await tx.run(`
-      INSERT INTO tanks (id, tank_id_code, station_id, name, total_height_cm, usable_height_cm, capacity_liters, low_threshold_percent, critical_threshold_percent, recovery_threshold_percent, current_water_depth_cm, current_water_percent, current_status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT (tank_id_code) DO NOTHING
-    `, 'tank-001', 'TANK_001', 'st-001', 'Lusaka CBD Primary Tank A', 50, 50, 15000, 25, 15, 35, 34.5, 69, 'NORMAL');
-    await tx.run(`
-      INSERT INTO monitoring_devices (id, device_id_code, tank_id, api_key_hash, firmware_version, is_active, last_seen_at, status)
-      VALUES (?, ?, ?, ?, 'v1.2.0', TRUE, NOW(), 'ONLINE')
-      ON CONFLICT (device_id_code) DO NOTHING
-    `, 'dev-001', 'ESP32_001', 'tank-001', hashPassword(apiKey));
+  await db.transaction(async (tx) => {
+    // --- Profiles -------------------------------------------------------------
+    const profiles = [
+      ['usr-admin-01', 'admin@majismart.zm', hashPassword(adminPassword), 'Mulenga Banda (Administrator)', 'admin', '+260971234567', 'Kabulonga', 'Lusaka'],
+      ['usr-cust-01', 'mwape@community.zm', hashPassword(customerPassword), 'Mwape Tembo', 'customer', '+260967890123', 'Chilenje', 'Lusaka'],
+      ['usr-cust-02', 'chanda@community.zm', hashPassword(customerPassword), 'Chanda Musonda', 'customer', '+260955432109', 'Matero', 'Lusaka']
+    ];
+    for (const p of profiles) {
+      await tx.run(`
+        INSERT INTO profiles (id, email, password_hash, full_name, role, phone_number, community, district)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (email) DO NOTHING
+      `, ...p);
+    }
+
+    // --- Monitoring stations --------------------------------------------------
+    const stations = [
+      ['st-001', 'ST-LUS-001', 'Lusaka Central Water Hub', 'CBD / Cairo Road', 'Lusaka', 'Lusaka Province', -15.416667, 28.283333, 'Primary distribution reservoir supplying central business district and hospitals'],
+      ['st-002', 'ST-CHL-002', 'Chilenje South Water Station', 'Chilenje', 'Lusaka', 'Lusaka Province', -15.4512, 28.3245, 'Community water tower serving Chilenje residential areas'],
+      ['st-003', 'ST-MAT-003', 'Matero West Reservoir', 'Matero', 'Lusaka', 'Lusaka Province', -15.385, 28.261, 'High-density community reservoir with high throughput'],
+      ['st-004', 'ST-CHEL-004', 'Chelston Depot Station', 'Chelston', 'Lusaka', 'Lusaka Province', -15.372, 28.381, 'Suburban storage tank supplying Chelston and Avondale'],
+      ['st-005', 'ST-NDL-005', 'Ndola Hilltop Station', 'Hillcrest', 'Ndola', 'Copperbelt Province', -12.969, 28.636, 'Copperbelt provincial monitoring station']
+    ];
+    for (const s of stations) {
+      await tx.run(`
+        INSERT INTO monitoring_stations (id, code, name, community, district, province, latitude, longitude, status, description)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?)
+        ON CONFLICT (code) DO NOTHING
+      `, ...s);
+    }
+
+    // --- Tanks ---------------------------------------------------------------
+    // TANK_001 matches the hardware photo exactly: 50 cm usable, 15.5 cm sensor
+    // distance, 34.5 cm water depth, 69%, NORMAL.
+    const tanks = [
+      ['tank-001', 'TANK_001', 'st-001', 'Lusaka CBD Primary Tank A', 50, 50, 15000, 25, 15, 35, 34.5, 69, 'NORMAL'],
+      ['tank-002', 'TANK_002', 'st-002', 'Chilenje Tower Tank 1', 100, 100, 25000, 25, 15, 35, 22, 22, 'LOW'],
+      ['tank-003', 'TANK_003', 'st-003', 'Matero Reservoir Tank B', 200, 200, 50000, 20, 10, 30, 170, 85, 'NORMAL'],
+      ['tank-004', 'TANK_004', 'st-004', 'Chelston Feeder Tank', 150, 150, 20000, 25, 15, 35, 12, 8, 'CRITICAL'],
+      ['tank-005', 'TANK_005', 'st-005', 'Ndola Copperbelt Tank', 180, 180, 30000, 20, 10, 30, 135, 75, 'NORMAL']
+    ];
+    for (const t of tanks) {
+      await tx.run(`
+        INSERT INTO tanks (id, tank_id_code, station_id, name, total_height_cm, usable_height_cm, sensor_offset_cm,
+          capacity_liters, low_threshold_percent, critical_threshold_percent, recovery_threshold_percent,
+          current_water_depth_cm, current_water_percent, current_status, last_reading_at)
+        VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, NOW())
+        ON CONFLICT (tank_id_code) DO NOTHING
+      `, ...t);
+    }
+
+    // --- Devices -------------------------------------------------------------
+    const devices = [
+      ['dev-001', 'ESP32_001', 'tank-001'],
+      ['dev-002', 'ESP32_002', 'tank-002'],
+      ['dev-003', 'ESP32_003', 'tank-003'],
+      ['dev-004', 'ESP32_004', 'tank-004'],
+      ['dev-005', 'ESP32_005', 'tank-005']
+    ];
+    for (const d of devices) {
+      await tx.run(`
+        INSERT INTO monitoring_devices (id, device_id_code, tank_id, api_key_hash, firmware_version, is_active, last_seen_at, status)
+        VALUES (?, ?, ?, ?, 'v1.2.0', TRUE, NOW(), 'ONLINE')
+        ON CONFLICT (device_id_code) DO NOTHING
+      `, d[0], d[1], d[2], apiKeyHash);
+    }
+
+    // --- Initial reading (exact hardware contract) ---------------------------
     await tx.run(`
       INSERT INTO water_level_readings (id, device_id, tank_id, distance_cm, water_depth_cm, water_level_percent, status, raw_payload)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?::jsonb)
@@ -312,6 +542,80 @@ async function seedPostgresData() {
       water_level_percent: 69,
       status: 'NORMAL'
     }));
+
+    // --- 24h of history so charts are populated ------------------------------
+    for (let i = 24; i >= 1; i--) {
+      const depth = Number((32.0 + Math.sin(i / 3) * 5.0).toFixed(2));
+      const dist = Number((50.0 - depth).toFixed(2));
+      const percent = Math.round((depth / 50.0) * 100);
+      await tx.run(`
+        INSERT INTO water_level_readings (id, device_id, tank_id, distance_cm, water_depth_cm, water_level_percent, status, raw_payload, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, 'NORMAL', ?::jsonb, NOW() - (?::int * INTERVAL '1 hour'))
+        ON CONFLICT (id) DO NOTHING
+      `, `rd-hist-${i}`, 'ESP32_001', 'TANK_001', dist, depth, percent, JSON.stringify({
+        device_id: 'ESP32_001',
+        tank_id: 'TANK_001',
+        distance_cm: dist,
+        water_depth_cm: depth,
+        water_level_percent: percent,
+        status: 'NORMAL'
+      }), i);
+    }
+
+    // --- Alerts --------------------------------------------------------------
+    const alerts = [
+      ['alt-001', 'tank-004', 'ESP32_004', 'CRITICAL_WATER', 'CRITICAL', 'Critically Low Water Level',
+        'Chelston Feeder Tank water level is at 8% (below critical threshold of 15%). Immediate supply augmentation required.'],
+      ['alt-002', 'tank-002', 'ESP32_002', 'LOW_WATER', 'WARNING', 'Low Water Level Advisory',
+        'Chilenje Tower Tank 1 water level is at 22% (below low threshold of 25%). Monitoring supply inflow.']
+    ];
+    for (const a of alerts) {
+      await tx.run(`
+        INSERT INTO water_alerts (id, tank_id, device_id, alert_type, severity, title, message, status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE', NOW() - INTERVAL '2 hours')
+        ON CONFLICT (id) DO NOTHING
+      `, ...a);
+    }
+
+    // --- Community reports ---------------------------------------------------
+    const reports = [
+      ['rep-001', 'usr-cust-01', 'Mwape Tembo', '+260967890123', 'WATER_SHORTAGE',
+        'Low pressure & water cut in Section 4',
+        'Water taps have had zero pressure since yesterday morning. Over 40 households affected in Chilenje South.',
+        'Chilenje South, near Market 4', -15.452, 28.326, 'st-002', 'IN_PROGRESS',
+        'Field technician dispatched to inspect pump station booster valve.'],
+      ['rep-002', 'usr-cust-02', 'Chanda Musonda', '+260955432109', 'PIPE_LEAKAGE',
+        'Clean water gushing from distribution pipe',
+        'Substantial pipe leak on Commonwealth Avenue near Matero clinic. Clean treated water is flooding the roadside.',
+        'Matero, Commonwealth Ave', -15.3875, 28.2635, 'st-003', 'SUBMITTED', null],
+      ['rep-003', 'usr-cust-01', 'Mwape Tembo', '+260967890123', 'WATER_QUALITY',
+        'Brownish discolouration in tap water',
+        'Water coming out of tap has sediment and slight brown tint after morning supply resumption.',
+        'Chelston Green, Plot 144', -15.3745, 28.3835, 'st-004', 'ACKNOWLEDGED',
+        'Flushing of Chelston sub-mains scheduled for 16:00 today.']
+    ];
+    for (const r of reports) {
+      await tx.run(`
+        INSERT INTO community_reports (id, reporter_id, reporter_name, reporter_phone, category, title, description,
+          location_name, latitude, longitude, station_id, status, admin_notes, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW() - INTERVAL '1 day')
+        ON CONFLICT (id) DO NOTHING
+      `, ...r);
+    }
+
+    // --- Report status history ----------------------------------------------
+    const history = [
+      ['hist-001', 'rep-001', 'SUBMITTED', 'ACKNOWLEDGED', 'Report reviewed by dispatch team.'],
+      ['hist-002', 'rep-001', 'ACKNOWLEDGED', 'IN_PROGRESS', 'Field team assigned to inspect valve.'],
+      ['hist-003', 'rep-003', 'SUBMITTED', 'ACKNOWLEDGED', 'Water quality team notified for sampling.']
+    ];
+    for (const h of history) {
+      await tx.run(`
+        INSERT INTO report_status_history (id, report_id, previous_status, new_status, changed_by, notes, created_at)
+        VALUES (?, ?, ?, ?, 'usr-admin-01', ?, NOW() - INTERVAL '18 hours')
+        ON CONFLICT (id) DO NOTHING
+      `, ...h);
+    }
   });
 }
 

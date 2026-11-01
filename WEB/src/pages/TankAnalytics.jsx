@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Chart as ChartJS, 
   CategoryScale, 
@@ -12,6 +12,7 @@ import {
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import { api } from '../services/api';
+import { createRefreshQueue } from '../services/refreshQueue';
 import { useAuth } from '../context/AuthContext';
 import { Wifi, Clock, ArrowLeft, Settings, Check, AlertCircle } from 'lucide-react';
 
@@ -26,7 +27,7 @@ ChartJS.register(
   Filler
 );
 
-export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
+export default function TankAnalytics({ selectedTankId, onBack, tanks, refreshVersion = 0 }) {
   const { isAdmin } = useAuth();
   const [tankId, setTankId] = useState(selectedTankId || 'TANK_001');
   const [tankData, setTankData] = useState(null);
@@ -35,6 +36,7 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
   const [editMode, setEditMode] = useState(false);
   const [formData, setFormData] = useState({});
   const [saveMsg, setSaveMsg] = useState('');
+  const historyQueue = useRef(null);
 
   useEffect(() => {
     if (selectedTankId) setTankId(selectedTankId);
@@ -62,6 +64,19 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
   useEffect(() => {
     loadTank();
   }, [tankId]);
+
+  useEffect(() => {
+    let active = true;
+    const queue = createRefreshQueue(async () => {
+      const res = await api.get(`/tanks/${encodeURIComponent(tankId)}`);
+      if (active && res.success) setTankData(res.data);
+    }, error => console.warn('[Telemetry] Chart refresh failed:', error));
+    historyQueue.current = queue;
+    void queue.request();
+    return () => { active = false; queue.close(); historyQueue.current = null; };
+  }, [tankId]);
+
+  useEffect(() => { void historyQueue.current?.request(); }, [refreshVersion]);
 
   const handleSaveConfig = async (e) => {
     e.preventDefault();
@@ -121,6 +136,7 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
   };
 
   const chartOptions = {
+    animation: false,
     responsive: true,
     maintainAspectRatio: false,
     scales: {
@@ -167,8 +183,8 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
             </button>
           )}
           <div>
-            <h2 style={{ fontSize: '22px', color: '#03045E' }}>{tankData.name} ({tankData.tank_id_code})</h2>
-            <p style={{ fontSize: '13px', color: '#64748B' }}>
+            <h2 style={{ fontSize: '1.375rem', color: '#03045E' }}>{tankData.name} ({tankData.tank_id_code})</h2>
+            <p style={{ fontSize: '0.875rem', color: '#64748B' }}>
               Station: {tankData.station_name || 'Central'} • Coordinates: {tankData.station_latitude}, {tankData.station_longitude}
             </p>
           </div>
@@ -211,7 +227,7 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
       {/* Admin Settings Form */}
       {editMode && (
         <form onSubmit={handleSaveConfig} className="stat-card" style={{ marginBottom: '24px', border: '1px solid #38BDF8' }}>
-          <h3 style={{ fontSize: '16px', marginBottom: '16px', color: '#03045E' }}>Administrative Tank Parameters</h3>
+          <h3 style={{ fontSize: '1rem', marginBottom: '16px', color: '#03045E' }}>Administrative Tank Parameters</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
             <div className="form-group">
               <label className="form-label">Tank Name</label>
@@ -276,37 +292,37 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
       {/* Metric Cards Row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
         <div className="stat-card">
-          <span style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>CURRENT WATER LEVEL</span>
-          <div style={{ fontSize: '32px', fontWeight: 800, color: '#0284C7', marginTop: '6px' }}>
+          <span style={{ fontSize: '0.875rem', color: '#64748B', fontWeight: 600 }}>CURRENT WATER LEVEL</span>
+          <div style={{ fontSize: '2rem', fontWeight: 800, color: '#0284C7', marginTop: '6px' }}>
             {tankData.current_water_percent}%
           </div>
-          <span style={{ fontSize: '13px', color: '#475569' }}>
+          <span style={{ fontSize: '0.875rem', color: '#475569' }}>
             Depth: {tankData.current_water_depth_cm} cm
           </span>
         </div>
 
         <div className="stat-card">
-          <span style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>PERIOD MINIMUM</span>
-          <div style={{ fontSize: '32px', fontWeight: 800, color: '#F59E0B', marginTop: '6px' }}>
+          <span style={{ fontSize: '0.875rem', color: '#64748B', fontWeight: 600 }}>PERIOD MINIMUM</span>
+          <div style={{ fontSize: '2rem', fontWeight: 800, color: '#F59E0B', marginTop: '6px' }}>
             {minPercent}%
           </div>
-          <span style={{ fontSize: '13px', color: '#475569' }}>Lowest recorded level</span>
+          <span style={{ fontSize: '0.875rem', color: '#475569' }}>Lowest recorded level</span>
         </div>
 
         <div className="stat-card">
-          <span style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>PERIOD MAXIMUM</span>
-          <div style={{ fontSize: '32px', fontWeight: 800, color: '#10B981', marginTop: '6px' }}>
+          <span style={{ fontSize: '0.875rem', color: '#64748B', fontWeight: 600 }}>PERIOD MAXIMUM</span>
+          <div style={{ fontSize: '2rem', fontWeight: 800, color: '#10B981', marginTop: '6px' }}>
             {maxPercent}%
           </div>
-          <span style={{ fontSize: '13px', color: '#475569' }}>Peak filling mark</span>
+          <span style={{ fontSize: '0.875rem', color: '#475569' }}>Peak filling mark</span>
         </div>
 
         <div className="stat-card">
-          <span style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>PAIRED IOT HARDWARE</span>
-          <div style={{ fontSize: '20px', fontWeight: 700, color: '#03045E', marginTop: '8px' }}>
+          <span style={{ fontSize: '0.875rem', color: '#64748B', fontWeight: 600 }}>PAIRED IOT HARDWARE</span>
+          <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#03045E', marginTop: '8px' }}>
             {tankData.device_id_code || 'ESP32_001'}
           </div>
-          <span style={{ fontSize: '12px', color: tankData.device_status === 'ONLINE' ? '#10B981' : '#64748B', fontWeight: 600 }}>
+          <span style={{ fontSize: '0.875rem', color: tankData.device_status === 'ONLINE' ? '#10B981' : '#64748B', fontWeight: 600 }}>
             ● {tankData.device_status || 'ONLINE'} (Last: {new Date(tankData.last_reading_at || Date.now()).toLocaleTimeString()})
           </span>
         </div>
@@ -316,8 +332,8 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
       <div className="stat-card" style={{ marginBottom: '32px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div>
-            <h3 style={{ fontSize: '17px', color: '#03045E' }}>Telemetry Historical Trend</h3>
-            <span style={{ fontSize: '12px', color: '#64748B' }}>Ultrasonic distance-derived water depth & fill percentages</span>
+            <h3 style={{ fontSize: '1.0625rem', color: '#03045E' }}>Telemetry Historical Trend</h3>
+            <span style={{ fontSize: '0.875rem', color: '#64748B' }}>Ultrasonic distance-derived water depth & fill percentages</span>
           </div>
 
           <div style={{ display: 'flex', gap: '6px', background: '#F1F5F9', padding: '3px', borderRadius: '8px' }}>
@@ -328,7 +344,7 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
                 style={{
                   padding: '4px 12px',
                   borderRadius: '6px',
-                  fontSize: '12px',
+                  fontSize: '0.875rem',
                   fontWeight: 600,
                   background: range === r ? '#FFFFFF' : 'transparent',
                   color: range === r ? '#03045E' : '#64748B',
@@ -381,3 +397,4 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
     </div>
   );
 }
+

@@ -1,0 +1,15 @@
+# Cloudflare Pages project configuration for the MajiSmart Zambia dashboard.
+#
+# Deploy from the repository root:
+#   npx wrangler pages deploy WEB/dist --project-name=majismart-zambia
+#
+# Building: build the Vite app first (npm --prefix WEB run build). Cloudflare Pages
+# can also build from Git directly - in that case set the root directory to WEB,
+# build command `npm ci && npm run build` and output directory `dist`.
+#
+# VITE_API_BASE_URL is baked in at build time and must be the deployed API origin,
+# e.g. https://majismart-api.onrender.com/api
+
+name = "majismart-zambia"
+pages_build_output_dir = "./dist"
+compatibility_date = "2026-10-30"

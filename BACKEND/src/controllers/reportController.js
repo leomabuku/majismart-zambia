@@ -1,13 +1,44 @@
 import { db } from '../database/db.js';
 import { realtime } from '../services/realtimeService.js';
 import crypto from 'node:crypto';
+import { OCTOBER_DEMO } from '../services/octoberDemo.js';
+
+// Photo evidence arrives as base64 from the Android camera (or a https URL from
+// the dashboard). Inline data URLs keep the pilot working without provisioning
+// a storage bucket; Supabase Storage is the next step once photo volume grows.
+const MAX_PHOTO_BYTES = 2 * 1024 * 1024;
+const ALLOWED_PHOTO_MIME = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+
+function normalisePhoto({ image_url, photo_base64, photo_mime }) {
+  if (typeof photo_base64 === 'string' && photo_base64.trim()) {
+    const mime = String(photo_mime || 'image/jpeg').toLowerCase();
+    if (!ALLOWED_PHOTO_MIME.includes(mime)) {
+      return { error: 'Photo must be a JPEG, PNG or WebP image' };
+    }
+    const raw = photo_base64.includes(',') ? photo_base64.split(',').pop() : photo_base64;
+    const approxBytes = Math.floor((raw.length * 3) / 4);
+    if (approxBytes > MAX_PHOTO_BYTES) {
+      return { error: 'Photo is larger than 2 MB after compression' };
+    }
+    return { value: `data:${mime === 'image/jpg' ? 'image/jpeg' : mime};base64,${raw}` };
+  }
+
+  if (typeof image_url === 'string' && /^https?:\/\//i.test(image_url.trim())) {
+    return { value: image_url.trim() };
+  }
+
+  return { value: null };
+}
 
 function sanitizeReportForViewer(report, viewer) {
   if (viewer?.role === 'admin') return report;
   const isOwner = viewer && report.reporter_id === viewer.id;
-  if (isOwner) return report;
+  const safeHistory = (report.history || []).map(({ notes, changed_by, changed_by_name, ...event }) => event);
+  const safe = { ...report, admin_notes: null, rejection_reason: isOwner ? report.rejection_reason : null, history: safeHistory };
+  if (isOwner) return safe;
   return {
-    ...report,
+    ...safe,
+    affected_area: null,
     reporter_id: null,
     reporter_name: null,
     reporter_phone: null,
@@ -27,20 +58,21 @@ export class ReportController {
       const isAdmin = req.user?.role === 'admin';
       let query = `
         SELECT 
-          r.*,
+          r.*, d.provenance, d.reported_category, d.observed_at, d.reported_severity, d.ongoing, d.affected_area,
           s.name as station_name,
           s.code as station_code,
           p.full_name as reporter_name_profile,
           p.phone_number as reporter_phone_profile
         FROM community_reports r
+        LEFT JOIN report_submission_details d ON d.report_id = r.id
         LEFT JOIN monitoring_stations s ON r.station_id = s.id
         LEFT JOIN profiles p ON r.reporter_id = p.id
-        WHERE 1=1
+        WHERE COALESCE(d.provenance, 'UNKNOWN') NOT IN ('SIMULATED','TEST')
       `;
       const params = [];
 
       if (category) {
-        query += ' AND r.category = ?';
+        query += ' AND COALESCE(d.reported_category, r.category) = ?';
         params.push(category);
       }
       if (status) {
@@ -61,7 +93,11 @@ export class ReportController {
         }
       }
 
-      query += ' ORDER BY r.created_at DESC';
+      query += ' ORDER BY r.created_at DESC LIMIT ? OFFSET ?';
+      // Bounded by default so a free-tier instance never loads the whole table.
+      const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 200, 1), 500);
+      const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+      params.push(limit, offset);
 
       const reports = await db.prepare(query).all(...params);
 
@@ -93,18 +129,19 @@ export class ReportController {
       const isAdmin = req.user?.role === 'admin';
       const report = await db.prepare(`
         SELECT 
-          r.*,
+          r.*, d.provenance, d.reported_category, d.observed_at, d.reported_severity, d.ongoing, d.affected_area,
           s.name as station_name,
           s.code as station_code,
           p.full_name as reporter_name_profile,
           p.phone_number as reporter_phone_profile
         FROM community_reports r
+        LEFT JOIN report_submission_details d ON d.report_id = r.id
         LEFT JOIN monitoring_stations s ON r.station_id = s.id
         LEFT JOIN profiles p ON r.reporter_id = p.id
         WHERE r.id = ?
       `).get(id);
 
-      if (!report) {
+      if (!report || (!isAdmin && ['SIMULATED','TEST'].includes(report.provenance))) {
         return res.status(404).json({ success: false, error: 'Report not found' });
       }
 
@@ -134,22 +171,52 @@ export class ReportController {
    */
   static async createReport(req, res) {
     try {
-      const { category, title, description, location_name, latitude, longitude, station_id, image_url, reporter_name, reporter_phone } = req.body;
+      const {
+        category, title, description, location_name, latitude, longitude,
+        location_accuracy_m, location_source, station_id, image_url,
+        photo_base64, photo_mime, reporter_name, reporter_phone, observed_at, reported_severity, ongoing, affected_area
+      } = req.body;
 
-      if (!category || !title || !description || !location_name) {
+      if (typeof category !== 'string' || typeof title !== 'string' || !title.trim() || typeof description !== 'string' || !description.trim() || typeof location_name !== 'string' || !location_name.trim()) {
         return res.status(400).json({
           success: false,
           error: 'Required fields: category, title, description, location_name'
         });
       }
 
-      const validCategories = ['WATER_SHORTAGE', 'PIPE_LEAKAGE', 'BURST_PIPE', 'TANK_MALFUNCTION', 'WATER_QUALITY', 'OTHER'];
+      const validCategories = ['WATER_SHORTAGE', 'PIPE_LEAKAGE', 'BURST_PIPE', 'LOW_PRESSURE', 'WATER_INTERRUPTION', 'DAMAGED_INFRASTRUCTURE', 'TANK_MALFUNCTION', 'MONITORING_FAULT', 'WATER_QUALITY', 'OTHER'];
       if (!validCategories.includes(category)) {
         return res.status(400).json({
           success: false,
           error: `Invalid category. Allowed: ${validCategories.join(', ')}`
         });
       }
+
+      if (reported_severity && !['LOW','MEDIUM','HIGH','UNKNOWN'].includes(reported_severity)) return res.status(400).json({success:false,error:'Invalid reported severity'});
+      if (ongoing && !['YES','NO','UNKNOWN'].includes(ongoing)) return res.status(400).json({success:false,error:'Invalid ongoing value'});
+      if (affected_area != null && (typeof affected_area !== 'string' || affected_area.length > 255)) return res.status(400).json({success:false,error:'Invalid affected area'});
+      if (observed_at && (typeof observed_at !== 'string' || !/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(observed_at) || !Number.isFinite(Date.parse(observed_at)) || Date.parse(observed_at) > Date.now() + 300000)) return res.status(400).json({success:false,error:'Observation time must be a valid, non-future timezone-qualified timestamp'});
+      const legacyCategory = ['WATER_SHORTAGE','PIPE_LEAKAGE','BURST_PIPE','TANK_MALFUNCTION','WATER_QUALITY','OTHER'].includes(category) ? category : 'OTHER';
+
+      const photo = normalisePhoto({ image_url, photo_base64, photo_mime });
+      if (photo.error) {
+        return res.status(400).json({ success: false, error: photo.error });
+      }
+
+      // Number(null) is 0, which would place every manual report at 0,0 - treat
+      // null/undefined/'' as "no value" instead.
+      const toNumber = (value) => {
+        if (value === null || value === undefined || value === '') return null;
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : null;
+      };
+      const lat = toNumber(latitude);
+      const lng = toNumber(longitude);
+      const hasPin = lat !== null && lng !== null && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+      const accuracy = toNumber(location_accuracy_m);
+      const source = typeof location_source === 'string' && location_source.trim()
+        ? location_source.trim().toUpperCase().slice(0, 20)
+        : (hasPin ? 'GPS' : 'MANUAL');
 
       const reportId = 'rep-' + crypto.randomUUID().slice(0, 8);
       const reporterId = req.user ? req.user.id : null;
@@ -160,33 +227,40 @@ export class ReportController {
         await tx.run(`
         INSERT INTO community_reports (
           id, reporter_id, reporter_name, reporter_phone, category, title, 
-          description, location_name, latitude, longitude, station_id, image_url, status
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SUBMITTED')
+          description, location_name, latitude, longitude, location_accuracy_m,
+          location_source, station_id, image_url, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SUBMITTED')
         `, 
         reportId,
         reporterId,
         rName,
         rPhone,
-        category,
+        legacyCategory,
         title.trim(),
         description.trim(),
         location_name.trim(),
-        typeof latitude === 'number' ? latitude : null,
-        typeof longitude === 'number' ? longitude : null,
+        hasPin ? lat : null,
+        hasPin ? lng : null,
+        accuracy !== null && accuracy >= 0 ? Math.round(accuracy * 100) / 100 : null,
+        source,
         station_id || null,
-        image_url || null
+        photo.value
         );
+
+        // Unknown provenance is explicit: the server cannot infer whether a
+        // human submission is operational or a test from its content.
+        await tx.run(`INSERT INTO report_submission_details (report_id,reported_category,observed_at,reported_severity,ongoing,affected_area,provenance) VALUES (?,?,?,?,?,?,'UNKNOWN')`, reportId,category,observed_at || null,reported_severity || null,ongoing || null,affected_area?.trim() || null);
 
         const historyId = 'hist-' + crypto.randomUUID().slice(0, 8);
         await tx.run(`
         INSERT INTO report_status_history (id, report_id, previous_status, new_status, changed_by, notes)
-        VALUES (?, ?, NULL, 'SUBMITTED', ?, 'Report submitted via MajiSmart')
+        VALUES (?, ?, NULL, 'SUBMITTED', ?, 'Report submitted via SmartWater')
         `, historyId, reportId, reporterId);
-        return tx.get('SELECT * FROM community_reports WHERE id = ?', reportId);
+        return tx.get('SELECT r.*, d.provenance, d.reported_category, d.observed_at, d.reported_severity, d.ongoing, d.affected_area FROM community_reports r LEFT JOIN report_submission_details d ON d.report_id = r.id WHERE r.id = ?', reportId);
       });
 
       // Broadcast real-time event to Web Dashboard
-      realtime.broadcast('REPORT_CREATED', created);
+      realtime.broadcast('REPORT_CREATED', { report_id: created.id });
 
       return res.status(201).json({
         success: true,
@@ -204,6 +278,7 @@ export class ReportController {
    * Lifecycle: SUBMITTED -> ACKNOWLEDGED -> IN_PROGRESS -> RESOLVED -> REJECTED
    */
   static async updateStatus(req, res) {
+    if(req.params.id.startsWith(OCTOBER_DEMO.prefix)) return res.status(409).json({success:false,error:'The synthetic October snapshot is read-only. Use operational reports for live case management.'});
     try {
       const { id } = req.params;
       const { status, admin_notes, rejection_reason } = req.body;
@@ -249,8 +324,6 @@ export class ReportController {
         report_id: id,
         previous_status: previousStatus,
         new_status: status,
-        admin_notes: admin_notes || null,
-        rejection_reason: rejection_reason || null,
         updated_at: new Date().toISOString()
       });
 
@@ -264,3 +337,4 @@ export class ReportController {
     }
   }
 }
+

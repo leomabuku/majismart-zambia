@@ -1,0 +1,56 @@
+# Fly.io configuration for the MajiSmart Zambia shared API.
+#
+# Why Fly.io: the API is a long-running Express process (background device monitor +
+# persistent SSE stream), so it cannot be hosted on serverless functions. Frankfurt
+# (fra) is chosen because it is the region where Supabase runs this project — keeping
+# the API next to the database removes ~150 ms from *every* query round trip.
+#
+# Create the app and set secrets before the first deploy:
+#   fly launch --no-deploy --name majismart-api --region fra
+#   fly secrets set JWT_SECRET=... IOT_API_KEY=... CORS_ORIGINS=https://majismart.zm \
+#     DATABASE_URL='postgresql://postgres.<ref>:<pwd>@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?sslmode=require'
+
+app = "majismart-api"
+primary_region = "fra"
+kill_signal = "SIGTERM"
+kill_timeout = "20s"
+
+[build]
+  dockerfile = "BACKEND/Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  DB_MODE = "supabase"
+  PORT = "8080"
+  # Schema changes are applied by CI (`supabase db push`), never at boot.
+  AUTO_MIGRATE = "false"
+  DB_POOL_MAX = "5"
+  DEVICE_OFFLINE_TIMEOUT_SECONDS = "60"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Never sleep: sleeping kills the SSE hub and pauses the device-offline monitor.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "connections"
+    soft_limit = 200
+    hard_limit = 250
+
+  [[http_service.checks]]
+    grace_period = "20s"
+    interval = "30s"
+    method = "GET"
+    timeout = "5s"
+    path = "/api/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+  # Start with a single machine. SSE fan-out and the device monitor live in process
+  # memory, so scaling out requires Redis pub/sub (or Supabase Realtime) first.
+  count = 1

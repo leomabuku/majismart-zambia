@@ -1,0 +1,54 @@
+name: Deploy web (Cloudflare Pages)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'WEB/**'
+      - '.github/workflows/deploy-web.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Build and publish dashboard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: WEB/package-lock.json
+
+      - name: Build
+        working-directory: WEB
+        run: npm ci && npm run build
+        env:
+          # Repository variable. Must be the deployed API origin + /api.
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || 'https://majismart-api.onrender.com/api' }}
+
+      - name: Check Cloudflare credentials
+        id: creds
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CF_TOKEN" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::CLOUDFLARE_API_TOKEN is not set - skipping the deploy. Use the Cloudflare Pages Git integration instead, or add CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID repo secrets."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy to Cloudflare Pages
+        if: steps.creds.outputs.configured == 'true'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: WEB
+          command: pages deploy dist --project-name=majismart-zambia --branch=${{ github.ref_name }}

@@ -1,0 +1,46 @@
+# Keeps the free-tier services from going cold.
+#
+# Render free web services spin down after 15 minutes without inbound traffic and
+# take 30-60s to wake. Supabase free projects pause after ~7 days of inactivity.
+# A 10-minute ping keeps Render awake (~730 of the 750 free instance hours/month)
+# and a daily Supabase auth ping keeps that project active.
+#
+# Caveat: GitHub cron schedules can be delayed under load, and scheduled workflows
+# are disabled after 60 days without repository activity. Use a free uptime monitor
+# (UptimeRobot / Better Stack, 5-minute checks) as the primary keep-alive; this
+# workflow is the backup and also proves the API is healthy once per cycle.
+
+name: Keep free-tier services warm
+
+on:
+  schedule:
+    # Every 10 minutes. Minimum GitHub interval is 5 minutes.
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    name: Ping API + Supabase
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping the API health endpoint (also wakes a sleeping instance)
+        env:
+          RENDER_API_URL: ${{ vars.RENDER_API_URL }}
+        run: |
+          if [ -z "$RENDER_API_URL" ]; then
+            echo "::notice::Repository variable RENDER_API_URL is not set (e.g. https://majismart-api.onrender.com) - skipping."
+            exit 0
+          fi
+          curl -fsS --max-time 120 "$RENDER_API_URL/api/health" \
+            -o /tmp/health.json -w 'api=%{http_code} in %{time_total}s\n'
+          cat /tmp/health.json
+
+      - name: Ping Supabase auth health (keeps the free project from pausing)
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+        run: |
+          if [ -z "$SUPABASE_URL" ]; then
+            echo "::notice::Repository variable SUPABASE_URL is not set - skipping."
+            exit 0
+          fi
+          curl -fsS --max-time 30 "$SUPABASE_URL/auth/v1/health" -o /dev/null -w 'supabase=%{http_code}\n'

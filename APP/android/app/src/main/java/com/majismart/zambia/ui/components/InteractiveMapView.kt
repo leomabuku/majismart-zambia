@@ -65,8 +65,8 @@ fun InteractiveMapView(
 
     var searchQuery by remember { mutableStateOf("") }
     var isSearchFocused by remember { mutableStateOf(false) }
-    var currentPinnedLocation by remember { mutableStateOf(selectedLatLng ?: defaultLusaka) }
-    var pinnedAddressName by remember { mutableStateOf("Selected Map Position") }
+    var currentPinnedLocation by remember { mutableStateOf<LatLng?>(selectedLatLng) }
+    var pinnedAddressName by remember { mutableStateOf(if (selectedLatLng == null) "Tap the map to choose" else "Selected Map Position") }
 
     // Filter preset locations based on search query
     val filteredPresets = remember(searchQuery) {
@@ -97,39 +97,27 @@ fun InteractiveMapView(
                 }
             }
         ) {
-            // Tank Markers
+            // Only stored, valid coordinates are plotted. Missing locations remain unplaced.
             tanks.forEach { tank ->
-                val tankPos = when (tank.id) {
-                    "1", "TANK_001" -> LatLng(-15.4411, 28.3245)
-                    "2", "TANK_002" -> LatLng(-15.4330, 28.3000)
-                    "3", "TANK_003" -> LatLng(-15.3850, 28.2580)
-                    else -> LatLng(-15.4080 + (tank.name.hashCode() % 50) * 0.001, 28.2900 + (tank.name.hashCode() % 50) * 0.001)
+                val lat = tank.latitude
+                val lng = tank.longitude
+                if (lat != null && lng != null && lat.isFinite() && lng.isFinite() && lat in -90.0..90.0 && lng in -180.0..180.0) {
+                    Marker(
+                        state = MarkerState(position = LatLng(lat, lng)),
+                        title = tank.name,
+                        snippet = if (tank.lastReadingAt == null) "No reading received" else "Last known: ${tank.currentWaterPercent}% • ${tank.deviceStatus ?: "UNKNOWN"}"
+                    )
                 }
-                val markerTitle = "${tank.name} (${tank.currentWaterPercent}%)"
-                Marker(
-                    state = MarkerState(position = tankPos),
-                    title = markerTitle,
-                    snippet = "Depth: ${tank.currentWaterDepthCm}cm / ${tank.totalHeightCm}cm"
-                )
             }
-
-            // Report Markers
             reports.forEach { report ->
-                val reportPos = LatLng(-15.4100 + (report.id.hashCode() % 40) * 0.001, 28.3100 + (report.id.hashCode() % 40) * 0.001)
-                Marker(
-                    state = MarkerState(position = reportPos),
-                    title = "Report: ${report.title}",
-                    snippet = "${report.status} • ${report.locationName}"
-                )
+                val lat = report.latitude
+                val lng = report.longitude
+                if (lat != null && lng != null && lat.isFinite() && lng.isFinite() && lat in -90.0..90.0 && lng in -180.0..180.0) {
+                    Marker(state = MarkerState(position = LatLng(lat, lng)), title = "Report: ${report.title}", snippet = "${report.status} • ${report.locationName}")
+                }
             }
-
-            // Pinned Location Marker for Picker Mode
-            if (isPickerMode || selectedLatLng != null) {
-                Marker(
-                    state = MarkerState(position = currentPinnedLocation),
-                    title = "Selected Location",
-                    snippet = pinnedAddressName
-                )
+            currentPinnedLocation?.let { pin ->
+                if (isPickerMode || selectedLatLng != null) Marker(state = MarkerState(position = pin), title = "Selected Location", snippet = pinnedAddressName)
             }
         }
 
@@ -164,7 +152,7 @@ fun InteractiveMapView(
                             searchQuery = it
                             isSearchFocused = true
                         },
-                        placeholder = { Text("Search location in Lusaka...", fontSize = 14.sp) },
+                        placeholder = { Text("Search location in Lusaka...", fontSize = 16.sp) },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = Color.Transparent,
                             unfocusedBorderColor = Color.Transparent
@@ -234,12 +222,12 @@ fun InteractiveMapView(
                                     Text(
                                         text = preset.name,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp,
+                                        fontSize = 16.sp,
                                         color = MajiNavy
                                     )
                                     Text(
                                         text = preset.description,
-                                        fontSize = 12.sp,
+                                        fontSize = 14.sp,
                                         color = Color.Gray
                                     )
                                 }
@@ -288,13 +276,13 @@ fun InteractiveMapView(
                         Column {
                             Text(
                                 text = "Selected Location",
-                                fontSize = 11.sp,
+                                fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.Gray
                             )
                             Text(
                                 text = pinnedAddressName,
-                                fontSize = 13.sp,
+                                fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MajiNavy
                             )
@@ -302,8 +290,9 @@ fun InteractiveMapView(
                     }
                     Button(
                         onClick = {
-                            onLocationSelected?.invoke(currentPinnedLocation, pinnedAddressName)
+                            currentPinnedLocation?.let { onLocationSelected?.invoke(it, pinnedAddressName) }
                         },
+                        enabled = currentPinnedLocation != null,
                         colors = ButtonDefaults.buttonColors(containerColor = MajiOceanBlue),
                         shape = RoundedCornerShape(10.dp)
                     ) {
@@ -314,3 +303,4 @@ fun InteractiveMapView(
         }
     }
 }
+

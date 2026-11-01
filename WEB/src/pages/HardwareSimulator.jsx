@@ -163,8 +163,8 @@ export default function HardwareSimulator({ onReadingSent, lastPacket }) {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
-          <h2 style={{ fontSize: '22px', color: '#03045E' }}>ESP32 IoT Telemetry Simulator</h2>
-          <p style={{ fontSize: '13px', color: '#64748B' }}>
+          <h2 style={{ fontSize: '1.375rem', color: '#03045E' }}>ESP32 IoT Telemetry Simulator</h2>
+          <p style={{ fontSize: '0.875rem', color: '#64748B' }}>
             Interactive simulation console sending authentic ultrasonic telemetry packets matching the photo format
           </p>
         </div>
@@ -181,7 +181,7 @@ export default function HardwareSimulator({ onReadingSent, lastPacket }) {
 
       {/* Quick Presets Row */}
       <div className="stat-card" style={{ marginBottom: '24px', background: '#F8FAFC', border: '1px solid #CBD5E1' }}>
-        <h3 style={{ fontSize: '15px', marginBottom: '12px', color: '#03045E' }}>Hardware Scenario Presets</h3>
+        <h3 style={{ fontSize: '1rem', marginBottom: '12px', color: '#03045E' }}>Hardware Scenario Presets</h3>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
           <button 
             onClick={sendPhotoFormat}
@@ -223,7 +223,7 @@ export default function HardwareSimulator({ onReadingSent, lastPacket }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px' }}>
         {/* Custom Packet Constructor */}
         <div className="stat-card">
-          <h3 style={{ fontSize: '16px', color: '#03045E', marginBottom: '16px' }}>Construct Custom ESP32 Packet</h3>
+          <h3 style={{ fontSize: '1rem', color: '#03045E', marginBottom: '16px' }}>Construct Custom ESP32 Packet</h3>
           
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <div className="form-group">
@@ -304,8 +304,8 @@ export default function HardwareSimulator({ onReadingSent, lastPacket }) {
           </div>
 
           {/* JSON Preview matching Photo */}
-          <div style={{ marginTop: '12px', background: '#0F172A', padding: '14px', borderRadius: '8px', color: '#93C5FD', fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
-            <div style={{ color: '#94A3B8', fontSize: '11px', marginBottom: '6px' }}>// Payload sent to POST /api/iot/readings:</div>
+          <div style={{ marginTop: '12px', background: '#0F172A', padding: '14px', borderRadius: '8px', color: '#93C5FD', fontFamily: 'var(--font-mono)', fontSize: '0.875rem' }}>
+            <div style={{ color: '#64748B', fontSize: '0.875rem', marginBottom: '6px' }}>// Payload sent to POST /api/iot/readings:</div>
             <pre>{JSON.stringify({
   device_id: deviceId,
   tank_id: targetTank,
@@ -330,17 +330,17 @@ export default function HardwareSimulator({ onReadingSent, lastPacket }) {
         {/* Realtime Ingestion Terminal & Packet Feed */}
         <div className="stat-card" style={{ background: '#0B0F19', color: '#E2E8F0', border: '1px solid #1E293B' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid #1E293B', paddingBottom: '10px' }}>
-            <h3 style={{ fontSize: '15px', display: 'flex', alignItems: 'center', gap: '8px', color: '#38BDF8' }}>
+            <h3 style={{ fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px', color: '#38BDF8' }}>
               <Terminal size={16} />
               <span>Telemetry Ingestion Log</span>
             </h3>
-            <span style={{ fontSize: '11px', color: '#64748B' }}>Live Server Ingestion</span>
+            <span style={{ fontSize: '0.875rem', color: '#64748B' }}>Live Server Ingestion</span>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '420px', overflowY: 'auto', fontFamily: 'var(--font-mono)', fontSize: '12px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '420px', overflowY: 'auto', fontFamily: 'var(--font-mono)', fontSize: '0.875rem' }}>
             {resultLog.map((log, idx) => (
               <div key={idx} style={{ padding: '6px 10px', background: log.success ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.1)', borderRadius: '6px', borderLeft: `3px solid ${log.success ? '#10B981' : '#EF4444'}` }}>
-                <span style={{ color: '#94A3B8' }}>[{log.time}] </span>
+                <span style={{ color: '#64748B' }}>[{log.time}] </span>
                 <span style={{ color: log.success ? '#A7F3D0' : '#FECACA' }}>{log.msg}</span>
               </div>
             ))}
@@ -355,3 +355,4 @@ export default function HardwareSimulator({ onReadingSent, lastPacket }) {
     </div>
   );
 }
+

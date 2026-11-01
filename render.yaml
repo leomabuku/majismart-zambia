@@ -2,19 +2,39 @@ services:
   - type: web
     name: majismart-api
     runtime: node
+    # Free plan: spins down after 15 minutes without inbound traffic and takes
+    # 30-60s to wake. The §keep-alive workflow (.github/workflows/keepalive.yml)
+    # plus an uptime monitor keeps it warm; the web and Android clients are built
+    # to survive cold starts (polling fallback + long timeouts).
+    plan: free
+    # Frankfurt is the closest Render region to the Supabase project (eu-west-1).
+    region: frankfurt
     buildCommand: npm ci --prefix BACKEND
     startCommand: npm start --prefix BACKEND
     healthCheckPath: /api/health
-    autoDeploy: false
+    autoDeploy: true
     envVars:
+      - key: NODE_VERSION
+        value: '24'
       - key: NODE_ENV
         value: production
       - key: DB_MODE
         value: supabase
+      # Supavisor pooler string. Copy from Supabase -> Project Settings -> Database
+      # -> Connection string -> Transaction pooler (port 6543), and append sslmode=require.
       - key: DATABASE_URL
         sync: false
+      # The schema is applied with `supabase db push`; the API never runs DDL at boot.
+      - key: AUTO_MIGRATE
+        value: 'false'
+      - key: DB_POOL_MAX
+        value: '5'
+      - key: DB_STATEMENT_TIMEOUT_MS
+        value: '15000'
+      - key: TRUST_PROXY_HOPS
+        value: '1'
       - key: PORT
-        value: 10000
+        value: '10000'
       - key: JWT_SECRET
         sync: false
       - key: IOT_API_KEY
@@ -23,7 +43,24 @@ services:
         sync: false
       - key: SEED_CUSTOMER_PASSWORD
         sync: false
+      # Comma-separated browser origins, e.g.
+      # https://majismart-zambia.pages.dev,https://dashboard.example.zm
       - key: CORS_ORIGINS
         sync: false
+      # Google Identity Services client id(s) for "Continue with Google".
+      # Comma separated when the web and Android clients differ. Empty disables
+      # the endpoint with a 503 instead of failing open.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
       - key: DEVICE_OFFLINE_TIMEOUT_SECONDS
-        value: 60
+        value: '900'
+      - key: SSE_HEARTBEAT_MS
+        value: '25000'
+      # No hardware is attached to this demo deployment, so without synthetic telemetry
+      # every tank flips to OFFLINE within one timeout window. Set DEMO_MODE=false (and
+      # tune DEVICE_OFFLINE_TIMEOUT_SECONDS to your gateway reporting interval) before
+      # connecting real sensors.
+      - key: DEMO_MODE
+        value: 'true'
+      - key: DEMO_INTERVAL_SECONDS
+        value: '90'
