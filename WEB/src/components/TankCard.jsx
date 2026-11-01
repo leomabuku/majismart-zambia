@@ -1,5 +1,5 @@
 import React from 'react';
-import { Wifi, WifiOff, Clock, Gauge, ArrowRight, Radio, FlaskConical } from 'lucide-react';
+import { Wifi, WifiOff, Clock, Gauge, FlaskConical, Radio } from 'lucide-react';
 
 // Data provenance decides how a tank is labelled. Tanks fed by a real field
 // device (OPERATIONAL) must never be presented as simulated, and simulated tanks
@@ -12,19 +12,20 @@ const PROVENANCE_META = {
 };
 
 export default function TankCard({ tank, onClick }) {
-  const percent = tank.current_water_percent ?? 0;
+  const percent = Number(tank.current_water_percent ?? 0);
   const status = tank.current_status || 'NORMAL';
-  const isOffline = status === 'OFFLINE' || tank.device_status === 'OFFLINE';
   const hasReading = Boolean(tank.last_reading_at);
+  // "Reporting" means a fresh reading arrived, whichever ingestion path handled
+  // it — the device row alone goes stale for units posting to Supabase directly.
+  const reporting = tank.reading_fresh != null ? Boolean(tank.reading_fresh) : tank.device_status === 'ONLINE';
   const provenance = PROVENANCE_META[tank.provenance] ? tank.provenance : (tank.provenance ? 'UNKNOWN' : null);
   const prov = provenance ? PROVENANCE_META[provenance] : null;
-  const awaitingCalibration = tank.installation_status && tank.installation_status !== 'CALIBRATED';
 
-  // Without a reading there is nothing honest to show but "unknown"; a 0% bar
-  // would read as an empty tank and trigger false alarms.
+  // The badge follows the water level, exactly like the other tanks. Connectivity
+  // is carried by the small icon in the footer instead of replacing the reading.
   const getStatusBadge = () => {
     if (!hasReading) return <span className="badge badge-offline">No readings yet</span>;
-    if (isOffline) return <span className="badge badge-offline">Offline ({percent}%)</span>;
+    if (status === 'SENSOR_ERROR') return <span className="badge badge-low">Sensor error</span>;
     if (status === 'CRITICAL' || percent <= 15) return <span className="badge badge-critical">Critical ({percent}%)</span>;
     if (status === 'LOW' || percent <= 25) return <span className="badge badge-low">Low ({percent}%)</span>;
     return <span className="badge badge-normal">Normal ({percent}%)</span>;
@@ -51,18 +52,11 @@ export default function TankCard({ tank, onClick }) {
           <div className="tank-subtitle">
             <strong style={{ color: '#0077B6' }}>{tank.tank_id_code}</strong> • {tank.station_name || tank.station_community || 'Central Grid'}
           </div>
-          {(prov || awaitingCalibration) && (
+          {prov && (
             <div className="tank-tags">
-              {prov && (
-                <span className={`tank-tag ${prov.className}`} title={prov.hint}>
-                  <prov.Icon size={11} /> {prov.label}
-                </span>
-              )}
-              {awaitingCalibration && (
-                <span className="tank-tag prov-pending" title="Measurements have not been verified against a manual dip reading.">
-                  Not calibrated
-                </span>
-              )}
+              <span className={`tank-tag ${prov.className}`} title={prov.hint}>
+                <prov.Icon size={11} /> {prov.label}
+              </span>
             </div>
           )}
         </div>
@@ -94,9 +88,12 @@ export default function TankCard({ tank, onClick }) {
       </div>
 
       <div className="tank-card-footer">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          {isOffline || !hasReading ? <WifiOff size={14} color="#94A3B8" /> : <Wifi size={14} color="#10B981" />}
-          <span>{tank.device_id_code || 'No device'} ({isOffline ? 'Offline' : hasReading ? 'Online' : 'Awaiting first reading'})</span>
+        <div
+          style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          title={reporting ? 'Device is sending readings' : 'No recent reading from this device'}
+        >
+          {reporting ? <Wifi size={14} color="#10B981" /> : <WifiOff size={14} color="#94A3B8" />}
+          <span>{tank.device_id_code || 'No device'}</span>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#64748B' }}>

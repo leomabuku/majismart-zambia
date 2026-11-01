@@ -1,14 +1,36 @@
 import { db } from '../database/db.js';
+import { parseStoredTimestamp } from '../lib/timestamps.js';
 import crypto from 'node:crypto';
 import { classifyCondition } from '../lib/tankCondition.js';
 
 const visibleTank = req => req.user?.role === 'admin' ? ['1=1', []] : ['(i.owner_id IS NULL OR i.owner_id = ?)', [req.user?.id || null]];
 
+// A tank is "reporting" when its newest reading is recent, regardless of which
+// path absorbed it. Field units that post to the legacy Supabase edge function
+// never touch monitoring_devices, so that row can say OFFLINE while a reading
+// arrives every few seconds; trusting the row alone hides live data.
+const REPORTING_WINDOW_MS = 10 * 60 * 1000;
+
+function markReportingTanks(rows) {
+  const now = Date.now();
+  return rows.map((row) => {
+    const lastReading = parseStoredTimestamp(row.last_reading_at);
+    const reporting = Number.isFinite(lastReading) && (now - lastReading) <= REPORTING_WINDOW_MS;
+    if (!reporting) return { ...row, reading_fresh: false };
+    return {
+      ...row,
+      reading_fresh: true,
+      device_status: row.device_status === 'ERROR' ? row.device_status : 'ONLINE'
+    };
+  });
+}
+
 export class StationController {
   static async getMyTanks(req, res) {
     try {
       const tanks = await db.prepare(`SELECT t.*, i.current_condition, i.current_volume_l, i.installation_status, i.provenance, s.name AS station_name, d.device_id_code, d.status AS device_status, d.last_seen_at AS device_last_seen_at FROM tanks t JOIN tank_installations i ON i.tank_id = t.id LEFT JOIN monitoring_stations s ON s.id = t.station_id LEFT JOIN monitoring_devices d ON d.tank_id = t.id WHERE i.owner_id = ? ORDER BY t.name`).all(req.user.id);
-      res.json({success:true,data:tanks,count:tanks.length});
+      const reporting = markReportingTanks(tanks);
+      res.json({success:true,data:reporting,count:reporting.length});
     } catch (err) { console.error('[My tanks]',err.message); res.status(500).json({success:false,error:'Unable to load tanks'}); }
   }
 
@@ -30,13 +52,18 @@ export class StationController {
         FROM tanks
       `).get();
 
-      const deviceStats = await db.prepare(`
-        SELECT
-          count(*) as total_devices,
-          sum(CASE WHEN status = 'ONLINE' THEN 1 ELSE 0 END) as online_devices,
-          sum(CASE WHEN status = 'OFFLINE' THEN 1 ELSE 0 END) as offline_devices
-        FROM monitoring_devices
-      `).get();
+      // Device connectivity uses the same "did a reading arrive recently" rule as
+      // the cards, so a unit posting straight to Supabase is not counted offline.
+      const deviceRows = await db.prepare(`
+        SELECT d.id, d.device_id_code, d.status, d.last_seen_at, t.last_reading_at
+        FROM monitoring_devices d
+        LEFT JOIN tanks t ON t.id = d.tank_id
+      `).all();
+      const deviceStats = { total_devices: deviceRows.length, online_devices: 0, offline_devices: 0 };
+      for (const device of markReportingTanks(deviceRows)) {
+        if (device.reading_fresh || device.status === 'ONLINE') deviceStats.online_devices += 1;
+        else deviceStats.offline_devices += 1;
+      }
 
       const reportStats = await db.prepare(`
         SELECT
@@ -162,7 +189,8 @@ export class StationController {
         ORDER BY t.name ASC
       `).all(...viewer);
 
-      return res.json({ success: true, count: tanks.length, data: tanks });
+      const reporting = markReportingTanks(tanks);
+      return res.json({ success: true, count: reporting.length, data: reporting });
     } catch (err) {
       return res.status(500).json({ success: false, error: 'Internal Server Error' });
     }
@@ -213,10 +241,11 @@ export class StationController {
         ORDER BY created_at DESC
       `).all(tank.id);
 
+      const [fresh] = markReportingTanks([tank]);
       return res.json({
         success: true,
         data: {
-          ...tank,
+          ...fresh,
           recent_readings: recentReadings.reverse(),
           alerts
         }

@@ -33,7 +33,6 @@ fun HomeScreen(tanks: List<Tank>, isLoading: Boolean, connectionError: String?, 
                     Text("Condition: ${if (tank.deviceStatus == "OFFLINE") "DEVICE OFFLINE" else if (tank.deviceStatus == "ERROR" || tank.currentStatus == "SENSOR_ERROR") "SENSOR ERROR" else tank.currentCondition ?: tank.currentStatus}")
                     Text("Device: ${tank.deviceStatus ?: "UNKNOWN"}")
                     Text("Last update: ${tank.lastReadingAt ?: "Never"}")
-                    if (tank.installationStatus != "CALIBRATED") Text("Calibration not verified; estimates may be inaccurate.")
                 }
             }
         }
