@@ -16,7 +16,6 @@ fun HomeScreen(tanks: List<Tank>, isLoading: Boolean, connectionError: String?, 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Text("Your water", fontSize = 24.sp)
-            Text("The last known level may be stale if the device is offline or has a sensor error.")
             Text("Refreshes every second while this screen is open. Last successful tank sync: ${lastSyncedAt ?: "Never"}.")
             if (connectionError != null) Text(connectionError, color = MaterialTheme.colorScheme.error)
             FlowRow { TextButton(onClick = onRefresh) { Text("Refresh") }; TextButton(onClick = onNavigateToReport) { Text("Report a problem") } }

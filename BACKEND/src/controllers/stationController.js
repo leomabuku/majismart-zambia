@@ -7,7 +7,7 @@ const visibleTank = req => req.user?.role === 'admin' ? ['1=1', []] : ['(i.owner
 export class StationController {
   static async getMyTanks(req, res) {
     try {
-      const tanks = await db.prepare(`SELECT t.*, i.current_condition, i.current_volume_l, i.installation_status, s.name AS station_name, d.device_id_code, d.status AS device_status, d.last_seen_at AS device_last_seen_at FROM tanks t JOIN tank_installations i ON i.tank_id = t.id LEFT JOIN monitoring_stations s ON s.id = t.station_id LEFT JOIN monitoring_devices d ON d.tank_id = t.id WHERE i.owner_id = ? ORDER BY t.name`).all(req.user.id);
+      const tanks = await db.prepare(`SELECT t.*, i.current_condition, i.current_volume_l, i.installation_status, i.provenance, s.name AS station_name, d.device_id_code, d.status AS device_status, d.last_seen_at AS device_last_seen_at FROM tanks t JOIN tank_installations i ON i.tank_id = t.id LEFT JOIN monitoring_stations s ON s.id = t.station_id LEFT JOIN monitoring_devices d ON d.tank_id = t.id WHERE i.owner_id = ? ORDER BY t.name`).all(req.user.id);
       res.json({success:true,data:tanks,count:tanks.length});
     } catch (err) { console.error('[My tanks]',err.message); res.status(500).json({success:false,error:'Unable to load tanks'}); }
   }
@@ -144,7 +144,7 @@ export class StationController {
       const [visibility, viewer] = visibleTank(req);
       const tanks = await db.prepare(`
         SELECT
-          t.*, i.current_volume_l, i.current_condition, i.installation_status, i.latitude, i.longitude,
+          t.*, i.current_volume_l, i.current_condition, i.installation_status, i.provenance, i.latitude, i.longitude,
           s.name as station_name,
           s.code as station_code,
           s.community as station_community,
@@ -177,7 +177,7 @@ export class StationController {
       const [visibility, viewer] = visibleTank(req);
       const tank = await db.prepare(`
         SELECT
-          t.*, i.current_volume_l, i.current_condition, i.installation_status, i.latitude, i.longitude,
+          t.*, i.current_volume_l, i.current_condition, i.installation_status, i.provenance, i.latitude, i.longitude,
           s.name as station_name,
           s.code as station_code,
           s.community as station_community,
