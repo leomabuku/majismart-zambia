@@ -96,6 +96,7 @@ export default function ReportAnalytics({ stations = [] }) {
   const locations = result?.hotspots || [], categoriesInResult = result?.categories || [];
   const matrixMaximum = Math.max(1, ...categoriesInResult.flatMap(c => locations.map(l => rows.filter(r => r.location === l.label && r.category === c.label).length)));
   const go = section => { setView(section); setSelected(null); };
+  const applied = [['category', 'Issue', filters.category], ['status', 'Status', filters.status], ['station', 'Station', filters.station ? stations.find(s => s.id === filters.station)?.name || filters.station : ''], ['location', 'Location', filters.location]].filter(([, , value]) => value);
   const actions = showActions ? result?.recommendations || [] : (result?.recommendations || []).slice(0, 2);
   return <div className="insights insight-compact">
     <div className="insight-heading"><div><p className="insight-eyebrow">Reports & service performance</p><h1>Report overview</h1><p>The key issues, progress and next actions in one place.</p></div>
@@ -107,20 +108,21 @@ export default function ReportAnalytics({ stations = [] }) {
       <button className="btn-secondary" aria-expanded={showFilters} onClick={() => setShowFilters(v => !v)}>Filters {showFilters ? '−' : '+'}</button>
       <span className="insight-update" role="status">{loading ? 'Updating…' : demo ? 'Historical snapshot' : 'Updates on report activity'}</span>
     </div>
+    {applied.length > 0 && <div className="insight-applied" aria-label="Applied report filters"><span>Filtered by:</span>{applied.map(([key, title, value]) => <span className="insight-filter-chip" key={key}>{title}: {key === 'category' || key === 'status' ? label(value) : value}</span>)}<button className="insight-link" onClick={() => setFilters(f => ({ ...f, category: '', status: '', station: '', location: '' }))}>Clear filters</button></div>}
     {showFilters && <section className="insight-filters insight-panel" aria-label="Report filters">
       <label>Submitted from<input type="date" name="from" value={filters.from} onChange={set} /></label><label>Through<input type="date" name="to" value={filters.to} onChange={set} /></label>
       <label>Issue<select name="category" value={filters.category} onChange={set}><option value="">All issues</option>{categories.map(c => <option key={c} value={c}>{label(c)}</option>)}</select></label>
       <label>Status<select name="status" value={filters.status} onChange={set}><option value="">All statuses</option>{['SUBMITTED', 'ACKNOWLEDGED', 'IN_PROGRESS', 'RESOLVED', 'REJECTED'].map(c => <option key={c} value={c}>{label(c)}</option>)}</select></label>
       <label>Station<select name="station" value={filters.station} onChange={set}><option value="">All stations</option>{stations.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label><label>Location<input name="location" value={filters.location} onChange={set} placeholder="e.g. Mtendere" /></label>
     </section>}
-    <div className="insight-source-note">{demo ? <><strong>Demo data</strong> · Fictional reports and admin responses. October snapshot; separate from operational totals.</> : <>Operational view · Unknown-provenance submissions are unverified.</>}</div>
+    <div className="insight-source-note">{demo ? <><strong>Demo data</strong> · Fictional reports and admin responses. October snapshot; separate from operational totals.</> : <>Operational reports · Some submissions have not yet been verified.</>}</div>
     <nav className="insight-tabs" aria-label="Report analysis sections">{sections.map(section => <button key={section} aria-pressed={view === section} className={view === section ? 'selected' : ''} onClick={() => go(section)}>{section}</button>)}</nav>
     {error && <p role="alert" className="insight-caution">{error}</p>}
     {loading && !result ? <p role="status">Loading report summary…</p> : result && <>
       <div className="insight-kpis">{[
         ['Total reports', result.total, result.unique_demo_residents == null ? 'Selected submissions' : `${result.unique_demo_residents} fictional residents`],
         ['Still open', result.open, `${result.urgent_open} high / critical`],
-        ['Resolved', result.statuses.RESOLVED || 0, result.resolution.rate_percent == null ? 'No eligible reports' : `${number(result.resolution.rate_percent)}% of eligible reports`],
+        ['Resolved', result.statuses.RESOLVED || 0, result.resolution.rate_percent == null ? 'No eligible reports' : `${number(result.resolution.rate_percent)}% resolved, excluding rejected`],
         ['Typical response', result.response.median_hours == null ? '—' : `${number(result.response.median_hours)} h`, 'Median first admin response']
       ].map(([title, value, subtitle]) => <section className="insight-panel" key={title}><span>{title}</span><strong>{value}</strong><small>{subtitle}</small></section>)}</div>
       {view === 'Overview' && <>

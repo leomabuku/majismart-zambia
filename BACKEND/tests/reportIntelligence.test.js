@@ -1,11 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {buildOctoberDemo,OCTOBER_DEMO} from '../src/services/octoberDemo.js';
+import {buildOctoberDemo,OCTOBER_DEMO,ensureOctoberDemo} from '../src/services/octoberDemo.js';
 import {analyzeReports} from '../src/services/reportIntelligence.js';
 
 const batch=buildOctoberDemo();
 const details=new Map(batch.details.map(d=>[d.report_id,d]));
 const rows=batch.reports.map(r=>({...r,...details.get(r.id),id:r.id}));
+
+test('existing dataset markers work with PostgreSQL JSONB and SQLite text without reinserting reports',async()=>{
+  const metadata={...OCTOBER_DEMO,reports:334,provenance:'SIMULATED'};
+  for(const value of [metadata,JSON.stringify(metadata)]){
+    const restored=await ensureOctoberDemo({get:async()=>({value}),transaction:()=>assert.fail('must not reinsert an existing dataset')});
+    assert.deepEqual(restored,metadata);
+  }
+});
 
 test('October scenario is deterministic, labelled synthetic and has valid chronological response histories',()=>{
   assert.deepEqual(buildOctoberDemo(),batch);
