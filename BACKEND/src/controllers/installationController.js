@@ -8,7 +8,14 @@ const nullable = x => x === '' || x == null ? null : x;
 export class InstallationController {
   static async list(req, res) {
     try {
-      const data = await db.prepare(`SELECT t.id, t.tank_id_code, t.name, i.installation_status, i.calibration_date FROM tanks t JOIN tank_installations i ON i.tank_id = t.id ORDER BY t.name LIMIT 500`).all();
+      const data = await db.prepare(`SELECT t.id, t.tank_id_code, t.name, t.station_id, s.name AS station_name,
+          i.installation_status, i.calibration_date, i.owner_id, p.full_name AS owner_name, p.email AS owner_email,
+          i.provenance, i.shape, i.height_cm, i.diameter_cm, i.nominal_capacity_l,
+          (SELECT d.device_id_code FROM monitoring_devices d WHERE d.tank_id = t.id AND d.is_active = TRUE ORDER BY d.created_at DESC, d.id DESC LIMIT 1) AS device_id_code
+        FROM tanks t JOIN tank_installations i ON i.tank_id = t.id
+        LEFT JOIN profiles p ON p.id = i.owner_id
+        LEFT JOIN monitoring_stations s ON s.id = t.station_id
+        ORDER BY t.tank_id_code LIMIT 500`).all();
       res.json({success:true,data});
     } catch (error) { console.error('[Installation list]', error.message); res.status(500).json({success:false,error:'Unable to load installations'}); }
   }
@@ -20,11 +27,49 @@ export class InstallationController {
       res.json({success:true,data:{...installation,tests}});
     } catch (error) { console.error('[Calibration history]', error.message); res.status(500).json({success:false,error:'Unable to load calibration history'}); }
   }
+  // Admins provisioning tanks in bulk should not have to invent unique codes.
+  // Anything derivable is derived; explicit values still win.
+  static async nextTankCode() {
+    const rows = await db.prepare("SELECT tank_id_code FROM tanks WHERE UPPER(tank_id_code) LIKE 'TANK%'").all();
+    let max = 0;
+    for (const row of rows) {
+      const match = /^TANK_(\d+)$/.exec(String(row.tank_id_code || '').toUpperCase());
+      if (match) max = Math.max(max, Number(match[1]));
+    }
+    for (let i = max + 1; i < max + 500; i += 1) {
+      const code = `TANK_${String(i).padStart(3, '0')}`;
+      if (!(await db.prepare('SELECT id FROM tanks WHERE tank_id_code = ?').get(code))) return code;
+    }
+    throw new Error('Unable to allocate a tank identifier');
+  }
+
+  static async nextDeviceId() {
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const code = `DEV_${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+      if (!(await db.prepare('SELECT id FROM monitoring_devices WHERE device_id_code = ?').get(code))) return code;
+    }
+    throw new Error('Unable to allocate a device identifier');
+  }
+
   static async create(req, res) {
     const b = req.body || {};
     try {
       const existingId = str(b.existing_tank_id);
-      if ((!existingId && (!str(b.name) || !/^[A-Za-z0-9_-]{1,50}$/.test(str(b.tank_id_code)))) || !/^[A-Za-z0-9_-]{1,50}$/.test(str(b.device_id)) || typeof b.device_key !== 'string' || b.device_key.length < 24 || b.device_key.length > 256) throw new Error('Tank details, device ID and a device credential of 24–256 characters are required');
+      const requestedCode = str(b.tank_id_code);
+      if (requestedCode && !/^[A-Za-z0-9_-]{1,50}$/.test(requestedCode)) throw new Error('Tank identifier may only use letters, digits, hyphen and underscore');
+      const requestedDevice = str(b.device_id);
+      if (requestedDevice && !/^[A-Za-z0-9_-]{1,50}$/.test(requestedDevice)) throw new Error('Device identifier may only use letters, digits, hyphen and underscore');
+      if (b.device_key != null && b.device_key !== '' && (typeof b.device_key !== 'string' || b.device_key.length < 24 || b.device_key.length > 256)) {
+        throw new Error('A device credential must be 24–256 characters, or omitted to generate one');
+      }
+
+      // Auto-assigned identity: tank code, device id and device credential.
+      const tankCode = existingId ? null : (requestedCode || await InstallationController.nextTankCode());
+      const tankName = existingId ? null : (str(b.name) || `Tank ${tankCode}`);
+      const deviceCode = requestedDevice || await InstallationController.nextDeviceId();
+      const generatedKey = b.device_key ? null : crypto.randomBytes(24).toString('base64url');
+      const deviceKey = generatedKey || b.device_key;
+
       const existing = existingId ? await db.prepare('SELECT id,tank_id_code FROM tanks WHERE id = ?').get(existingId) : null;
       if (existingId && !existing) return res.status(404).json({success:false,error:'Existing tank not found'});
       if (existingId && await db.prepare('SELECT tank_id FROM tank_installations WHERE tank_id = ?').get(existingId)) return res.status(409).json({success:false,error:'Tank already has an installation; use calibration or device replacement'});
@@ -36,6 +81,16 @@ export class InstallationController {
       const measurement = calculateMeasurement(config, config.empty_distance_cm);
       const provenance = b.provenance || 'UNKNOWN';
       if (!['OPERATIONAL', 'SIMULATED', 'TEST', 'UNKNOWN'].includes(provenance)) throw new Error('Invalid provenance');
+      // A SIMULATED tank can be driven by the API's own DEMO_MODE synthetic
+      // telemetry, which authenticates with the shared IOT_API_KEY. The credential
+      // is then never handed out, because it is not a per-device secret.
+      const useDemoCredential = b.use_demo_credential === true;
+      if (useDemoCredential && provenance !== 'SIMULATED') throw new Error('The shared demo credential can only be used for SIMULATED installations');
+      if (useDemoCredential && !process.env.IOT_API_KEY) throw new Error('IOT_API_KEY is not configured on this server, so demo telemetry cannot authenticate');
+      const autoCalibrate = b.auto_calibrate === true;
+      if (autoCalibrate && !['SIMULATED', 'TEST'].includes(provenance)) {
+        throw new Error('Automatic calibration approval is only allowed for SIMULATED or TEST installations; real sensors need manual tests');
+      }
       const lat = num('latitude'), lng = num('longitude');
       if ((lat === null) !== (lng === null) || (lat !== null && (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180))) throw new Error('Provide valid latitude and longitude together');
       const nominal = num('nominal_capacity_l');
@@ -44,8 +99,9 @@ export class InstallationController {
       classifyCondition(50, null, {critical, low, warning, hysteresis});
       if (b.station_id && !(await db.prepare('SELECT id FROM monitoring_stations WHERE id = ?').get(b.station_id))) throw new Error('Station not found');
       if (b.owner_id && !(await db.prepare('SELECT id FROM profiles WHERE id = ?').get(b.owner_id))) throw new Error('Owner not found');
-      if ((!existingId && await db.prepare('SELECT id FROM tanks WHERE tank_id_code = ?').get(str(b.tank_id_code))) || await db.prepare('SELECT id FROM monitoring_devices WHERE device_id_code = ?').get(str(b.device_id))) return res.status(409).json({success:false, error:'Tank or device ID already exists'});
+      if ((!existingId && await db.prepare('SELECT id FROM tanks WHERE tank_id_code = ?').get(tankCode)) || await db.prepare('SELECT id FROM monitoring_devices WHERE device_id_code = ?').get(deviceCode)) return res.status(409).json({success:false, error:'Tank or device ID already exists'});
       const id = existingId || `tank-${crypto.randomUUID()}`, deviceId = `dev-${crypto.randomUUID()}`;
+      const calibratedAt = new Date().toISOString();
       await db.transaction(async tx => {
         if (existingId) {
           // Do not infer calibration from old values. Retain history but clear the
@@ -53,14 +109,40 @@ export class InstallationController {
           await tx.run("UPDATE monitoring_devices SET is_active = FALSE, status = 'OFFLINE', tank_id = NULL, updated_at = datetime('now') WHERE tank_id = ?", id);
           await tx.run("UPDATE tanks SET total_height_cm = ?, usable_height_cm = ?, capacity_liters = ?, critical_threshold_percent = ?, low_threshold_percent = ?, current_status = 'OFFLINE', last_reading_at = NULL, updated_at = datetime('now') WHERE id = ?", config.height_cm, config.height_cm, Math.max(1, Math.round(nominal || measurement.usable_capacity_l)), critical, low, id);
         } else {
-          await tx.run(`INSERT INTO tanks (id,tank_id_code,name,station_id,total_height_cm,usable_height_cm,capacity_liters,critical_threshold_percent,low_threshold_percent,current_status) VALUES (?,?,?,?,?,?,?,?,?,'OFFLINE')`, id, str(b.tank_id_code), str(b.name), nullable(b.station_id), config.height_cm, config.height_cm, Math.max(1, Math.round(nominal || measurement.usable_capacity_l)), critical, low);
+          await tx.run(`INSERT INTO tanks (id,tank_id_code,name,station_id,total_height_cm,usable_height_cm,capacity_liters,critical_threshold_percent,low_threshold_percent,current_status) VALUES (?,?,?,?,?,?,?,?,?,'OFFLINE')`, id, tankCode, tankName, nullable(b.station_id), config.height_cm, config.height_cm, Math.max(1, Math.round(nominal || measurement.usable_capacity_l)), critical, low);
         }
         await tx.run(`INSERT INTO tank_installations (tank_id,owner_id,address,community,latitude,longitude,shape,height_cm,diameter_cm,length_cm,width_cm,nominal_capacity_l,empty_distance_cm,full_distance_cm,measurement_offset_cm,dead_zone_cm,tolerance_cm,sensor_model,mounting_position,installer_notes,warning_threshold,hysteresis,provenance) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, id, nullable(b.owner_id), nullable(b.address), nullable(b.community), lat, lng, config.shape, config.height_cm, config.diameter_cm, config.length_cm, config.width_cm, nominal, config.empty_distance_cm, config.full_distance_cm, offset, config.dead_zone_cm, config.tolerance_cm, nullable(b.sensor_model), nullable(b.mounting_position), nullable(b.installer_notes), warning, hysteresis, provenance);
-        await tx.run(`INSERT INTO monitoring_devices (id,device_id_code,tank_id,api_key_hash,status) VALUES (?,?,?,?,'OFFLINE')`, deviceId, str(b.device_id), id, hashPassword(b.device_key));
+        const credentialHash = useDemoCredential ? hashPassword(process.env.IOT_API_KEY) : hashPassword(deviceKey);
+        await tx.run(`INSERT INTO monitoring_devices (id,device_id_code,tank_id,api_key_hash,status) VALUES (?,?,?,?,'OFFLINE')`, deviceId, deviceCode, id, credentialHash);
+        if (autoCalibrate) {
+          // Demo/simulated only: record the three band tests the verifier needs and
+          // approve them, so a bulk-provisioned demo tank can ingest immediately.
+          for (const percent of [20, 50, 80]) {
+            const manualDepth = Number((config.height_cm * percent / 100).toFixed(2));
+            const rawDistance = Number((config.empty_distance_cm - manualDepth - offset).toFixed(2));
+            const result = calculateMeasurement(config, rawDistance + offset);
+            await tx.run('INSERT INTO tank_calibration_tests (id,tank_id,actor_id,raw_distance_cm,manual_depth_cm,calculated_depth_cm,depth_error_cm,created_at) VALUES (?,?,?,?,?,?,?,?)', `cal-${crypto.randomUUID()}`, id, req.user.id, rawDistance, manualDepth, result.water_depth_cm, result.water_depth_cm - manualDepth, calibratedAt);
+          }
+          await tx.run("UPDATE tank_installations SET installation_status = 'CALIBRATED', calibration_date = ?, updated_at = ? WHERE tank_id = ?", calibratedAt, calibratedAt, id);
+        }
       });
-      return res.status(201).json({success:true, data:{id, tank_id_code:existing ? existing.tank_id_code : str(b.tank_id_code), device_id:str(b.device_id), installation_status:'AWAITING_CALIBRATION', calculated_capacity_l:measurement.usable_capacity_l}});
+      return res.status(201).json({success:true, data:{
+        id,
+        tank_id_code: existing ? existing.tank_id_code : tankCode,
+        name: existing ? null : tankName,
+        device_id: deviceCode,
+        // Returned once, at creation. The API never stores the plaintext credential.
+        device_key: useDemoCredential ? null : generatedKey,
+        demo_credential: useDemoCredential,
+        owner_id: nullable(b.owner_id),
+        station_id: nullable(b.station_id),
+        installation_status: autoCalibrate ? 'CALIBRATED' : 'AWAITING_CALIBRATION',
+        calculated_capacity_l: measurement.usable_capacity_l,
+        provenance
+      }});
     } catch (err) { console.error('[Installation]', err.message); return res.status(400).json({success:false, error:err.message}); }
   }
+
   static async calibrationTest(req, res) {
     const config = await db.prepare('SELECT * FROM tank_installations WHERE tank_id = ?').get(req.params.id);
     if (!config) return res.status(404).json({success:false,error:'Installation not found'});
@@ -95,18 +177,25 @@ export class InstallationController {
   // Replacing a device never changes the installation or rewrites its readings.
   static async replaceDevice(req, res) {
     try {
-      const { device_id, device_key } = req.body || {};
-      if (!/^[A-Za-z0-9_-]{1,50}$/.test(str(device_id)) || typeof device_key !== 'string' || device_key.length < 24 || device_key.length > 256) return res.status(400).json({success:false,error:'Valid device ID and credential of 24–256 characters are required'});
+      const body = req.body || {};
       const installation = await db.prepare('SELECT tank_id FROM tank_installations WHERE tank_id = ?').get(req.params.id);
       if (!installation) return res.status(404).json({success:false,error:'Configured installation not found'});
-      if (await db.prepare('SELECT id FROM monitoring_devices WHERE device_id_code = ?').get(str(device_id))) return res.status(409).json({success:false,error:'Device ID already exists; rotate its credential instead'});
+      // Identifiers and credentials are generated when the caller omits them.
+      const deviceCode = str(body.device_id) || await InstallationController.nextDeviceId();
+      if (!/^[A-Za-z0-9_-]{1,50}$/.test(deviceCode)) return res.status(400).json({success:false,error:'Device identifier may only use letters, digits, hyphen and underscore'});
+      if (body.device_key != null && body.device_key !== '' && (typeof body.device_key !== 'string' || body.device_key.length < 24 || body.device_key.length > 256)) {
+        return res.status(400).json({success:false,error:'A device credential must be 24–256 characters, or omitted to generate one'});
+      }
+      const generatedKey = body.device_key ? null : crypto.randomBytes(24).toString('base64url');
+      const deviceKey = generatedKey || body.device_key;
+      if (await db.prepare('SELECT id FROM monitoring_devices WHERE device_id_code = ?').get(deviceCode)) return res.status(409).json({success:false,error:'Device ID already exists; rotate its credential instead'});
       await db.transaction(async tx => {
         // Detach and revoke previous devices so a single live device is associated.
         await tx.run("UPDATE monitoring_devices SET is_active = FALSE, status = 'OFFLINE', tank_id = NULL, updated_at = datetime('now') WHERE tank_id = ?", req.params.id);
-        await tx.run("INSERT INTO monitoring_devices (id,device_id_code,tank_id,api_key_hash,status) VALUES (?,?,?,?,'OFFLINE')", `dev-${crypto.randomUUID()}`, str(device_id), req.params.id, hashPassword(device_key));
+        await tx.run("INSERT INTO monitoring_devices (id,device_id_code,tank_id,api_key_hash,status) VALUES (?,?,?,?,'OFFLINE')", `dev-${crypto.randomUUID()}`, deviceCode, req.params.id, hashPassword(deviceKey));
         await tx.run("UPDATE tanks SET current_status = 'OFFLINE', updated_at = datetime('now') WHERE id = ?", req.params.id);
       });
-      res.status(201).json({success:true,data:{device_id:str(device_id),status:'OFFLINE'}});
+      res.status(201).json({success:true,data:{device_id:deviceCode,device_key:generatedKey,status:'OFFLINE'}});
     } catch (error) { console.error('[Device replacement]', error.message); res.status(500).json({success:false,error:'Unable to replace device'}); }
   }
   static async deviceCredential(req, res) {

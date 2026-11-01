@@ -365,3 +365,95 @@ test('history includes SQLite-formatted readings inside the requested window', a
   assert.ok(response.data.some(r=>r.id===id));
 });
 
+// ---------------------------------------------------------------------------
+// Menu-driven provisioning: identifiers and credentials are assigned by the API
+// ---------------------------------------------------------------------------
+
+const quickAdd = async (token, body) => fetch(`${BASE_URL}/api/installations`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+  body: JSON.stringify(body)
+});
+
+test('quick add assigns tank code, device id and device credential automatically', async () => {
+  const token = await loginAsAdmin();
+  const response = await quickAdd(token, {
+    shape: 'rectangular', height_cm: 20, length_cm: 20, width_cm: 10,
+    empty_distance_cm: 25, full_distance_cm: 5,
+    provenance: 'TEST', auto_calibrate: true
+  });
+  const body = await response.text();
+  assert.equal(response.status, 201, body);
+  const { data } = JSON.parse(body);
+
+  assert.match(data.tank_id_code, /^TANK_\d{3,}$/, 'tank code is generated as TANK_nnn');
+  assert.match(data.device_id, /^DEV_[0-9A-F]{8}$/, 'device id is generated');
+  assert.ok(typeof data.device_key === 'string' && data.device_key.length >= 24, 'credential is generated and returned once');
+  assert.equal(data.installation_status, 'CALIBRATED', 'simulated/test installations can be auto-approved');
+  assert.match(data.name, /^Tank TANK_\d{3,}$/, 'name is derived when omitted');
+  assert.ok(Math.abs(data.calculated_capacity_l - 4) < 0.01, 'capacity is geometry-derived');
+
+  // The generated credential must actually authenticate the device.
+  const reading = await deviceRequest({ device_id: data.device_id, tank_id: data.tank_id_code, distance_cm: 25 }, data.device_key);
+  assert.equal(reading.status, 201, await reading.text());
+
+  // A second call continues the sequence rather than colliding.
+  const second = await (await quickAdd(token, {
+    shape: 'rectangular', height_cm: 20, length_cm: 20, width_cm: 10,
+    empty_distance_cm: 25, full_distance_cm: 5, provenance: 'TEST', auto_calibrate: true
+  })).json();
+  assert.notEqual(second.data.tank_id_code, data.tank_id_code);
+  assert.notEqual(second.data.device_id, data.device_id);
+});
+
+test('automatic calibration approval is refused for real sensor provenance', async () => {
+  const token = await loginAsAdmin();
+  const response = await quickAdd(token, {
+    shape: 'rectangular', height_cm: 20, length_cm: 20, width_cm: 10,
+    empty_distance_cm: 25, full_distance_cm: 5,
+    provenance: 'OPERATIONAL', auto_calibrate: true
+  });
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /SIMULATED or TEST/);
+});
+
+test('replacing a device generates an identifier and credential when omitted', async () => {
+  const token = await loginAsAdmin();
+  const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
+  const list = await (await fetch(`${BASE_URL}/api/installations`, { headers })).json();
+  const installation = list.data.find(i => i.tank_id_code === tankCode);
+  const response = await fetch(`${BASE_URL}/api/installations/${installation.id}/device`, { method: 'POST', headers, body: JSON.stringify({}) });
+  const body = await response.text();
+  assert.equal(response.status, 201, body);
+  const { data } = JSON.parse(body);
+  assert.match(data.device_id, /^DEV_[0-9A-F]{8}$/);
+  assert.ok(data.device_key && data.device_key.length >= 24);
+  assert.equal(data.status, 'OFFLINE');
+});
+
+test('a simulated tank can use the shared demo credential instead of a new secret', async () => {
+  const token = await loginAsAdmin();
+  const response = await quickAdd(token, {
+    shape: 'rectangular', height_cm: 20, length_cm: 20, width_cm: 10,
+    empty_distance_cm: 25, full_distance_cm: 5,
+    provenance: 'SIMULATED', auto_calibrate: true, use_demo_credential: true
+  });
+  const body = await response.text();
+  assert.equal(response.status, 201, body);
+  const { data } = JSON.parse(body);
+  assert.equal(data.device_key, null, 'no per-device secret is handed out');
+  assert.equal(data.demo_credential, true);
+
+  // DEMO_MODE authenticates with the shared IOT_API_KEY.
+  const demoKey = process.env.IOT_API_KEY;
+  const reading = await deviceRequest({ device_id: data.device_id, tank_id: data.tank_id_code, distance_cm: 15 }, demoKey);
+  assert.equal(reading.status, 201, await reading.text());
+
+  // The shared credential must not be accepted for a real (OPERATIONAL) tank.
+  const refused = await quickAdd(token, {
+    shape: 'rectangular', height_cm: 20, length_cm: 20, width_cm: 10,
+    empty_distance_cm: 25, full_distance_cm: 5, provenance: 'OPERATIONAL', use_demo_credential: true
+  });
+  assert.equal(refused.status, 400);
+  assert.match((await refused.json()).error, /SIMULATED/);
+});
