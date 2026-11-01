@@ -21,8 +21,8 @@ export default function Dashboard({ summary, tanks, alerts, reports, onSelectTan
         <div className="telemetry-ticker" style={{ borderRadius: '12px', marginBottom: '24px' }}>
           <div className="ticker-left">
             <span className="live-pulse-dot" />
-            <span style={{ fontWeight: 600, color: '#38BDF8' }}>LIVE ESP32 PACKET:</span>
-            <span>Device: <strong>{lastTelemetry.device_id}</strong></span>
+            <span style={{ fontWeight: 600, color: '#38BDF8' }}>LATEST TANK READING:</span>
+            <span>Device: <strong>{lastTelemetry.device_id || 'Not supplied'}</strong></span>
             <span>•</span>
             <span>Tank: <strong>{lastTelemetry.tank_id}</strong></span>
             <span>•</span>
@@ -155,3 +155,4 @@ export default function Dashboard({ summary, tanks, alerts, reports, onSelectTan
     </div>
   );
 }
+

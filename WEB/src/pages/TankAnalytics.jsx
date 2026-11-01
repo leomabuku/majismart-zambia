@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Chart as ChartJS, 
   CategoryScale, 
@@ -12,6 +12,7 @@ import {
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import { api } from '../services/api';
+import { createRefreshQueue } from '../services/refreshQueue';
 import { useAuth } from '../context/AuthContext';
 import { Wifi, Clock, ArrowLeft, Settings, Check, AlertCircle } from 'lucide-react';
 
@@ -35,6 +36,7 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks, refreshVe
   const [editMode, setEditMode] = useState(false);
   const [formData, setFormData] = useState({});
   const [saveMsg, setSaveMsg] = useState('');
+  const historyQueue = useRef(null);
 
   useEffect(() => {
     if (selectedTankId) setTankId(selectedTankId);
@@ -65,11 +67,16 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks, refreshVe
 
   useEffect(() => {
     let active = true;
-    api.get(`/tanks/${encodeURIComponent(tankId)}`).then(res => {
+    const queue = createRefreshQueue(async () => {
+      const res = await api.get(`/tanks/${encodeURIComponent(tankId)}`);
       if (active && res.success) setTankData(res.data);
-    }).catch(error => console.warn('[Telemetry] Chart refresh failed:', error));
-    return () => { active = false; };
-  }, [tankId, refreshVersion]);
+    }, error => console.warn('[Telemetry] Chart refresh failed:', error));
+    historyQueue.current = queue;
+    void queue.request();
+    return () => { active = false; queue.close(); historyQueue.current = null; };
+  }, [tankId]);
+
+  useEffect(() => { void historyQueue.current?.request(); }, [refreshVersion]);
 
   const handleSaveConfig = async (e) => {
     e.preventDefault();
@@ -129,6 +136,7 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks, refreshVe
   };
 
   const chartOptions = {
+    animation: false,
     responsive: true,
     maintainAspectRatio: false,
     scales: {

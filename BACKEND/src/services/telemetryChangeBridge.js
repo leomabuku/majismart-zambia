@@ -1,19 +1,19 @@
 // Relay out-of-process database writes as invalidations, never as public row data.
 // The browser then fetches the current records through the existing authorized API.
 export class TelemetryChangeBridge {
-  constructor({ client, readState, onChange, hasViewers = () => true, pollMs = 2000 }) {
+  constructor({ client, readState, onChange, hasViewers = () => true, pollMs = 1000 }) {
     this.client = client;
     this.readState = readState;
     this.onChange = onChange;
     this.hasViewers = hasViewers;
-    this.pollMs = Number.isFinite(pollMs) ? Math.max(1000, pollMs) : 2000;
+    this.pollMs = Number.isFinite(pollMs) ? Math.max(1000, pollMs) : 1000;
     this.running = false;
     this.polling = false;
     this.fingerprint = null;
     this.state = { mode: 'stopped', last_event_at: null, last_check_at: null, check_error: false };
   }
 
-  status() { return { ...this.state }; }
+  status() { return { ...this.state, check_interval_ms: this.pollMs }; }
 
   notify() {
     if (!this.running) return;

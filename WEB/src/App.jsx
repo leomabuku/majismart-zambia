@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api } from './services/api';
 import { createRefreshQueue } from './services/refreshQueue';
+import { latestTankPacket, mergeTankReadings, newestPacket } from './services/telemetryView';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
@@ -47,7 +48,7 @@ function MainApp() {
 
       if (sumRes.success) setSummary(sumRes.summary);
       if (stRes.success) setStations(stRes.data);
-      if (tkRes.success) setTanks(tkRes.data);
+      if (tkRes.success) { setTanks(prev => mergeTankReadings(prev, tkRes.data)); setLastTelemetry(prev => newestPacket(prev, latestTankPacket(tkRes.data))); }
       if (altRes.success) setAlerts(altRes.data);
       if (repRes.success) setReports(repRes.data);
       setLastSyncAt(new Date());
@@ -58,17 +59,33 @@ function MainApp() {
 
   useEffect(() => {
     const queue = createRefreshQueue(reloadData, error => console.error('[Realtime] Refresh failed:', error));
-    refreshQueue.current = queue;
-    void queue.request();
-    const unsubscribe = api.subscribeRealtime((event) => {
-      if (['SYNC', 'NEW_READING', 'TANK_UPDATED', 'DEVICE_STATUS_CHANGED'].includes(event)) {
+    let lastSummaryAt = 0, lastFullAt = Date.now(), streamState = 'connecting', summaryBusy = false;
+    const readings = createRefreshQueue(async () => {
+      const res = await api.get('/tanks');
+      if (res.success) {
+        setTanks(prev => mergeTankReadings(prev, res.data));
+        setLastTelemetry(prev => newestPacket(prev, latestTankPacket(res.data)));
+        setLastSyncAt(new Date());
         setTelemetryRevision(value => value + 1);
       }
-      // Public events are invalidations. Read the actual values through the
-      // authenticated API immediately, rather than waiting for a polling tick.
-      void queue.request();
-    }, { onStatus: setConnState });
-    return () => { queue.close(); unsubscribe(); refreshQueue.current = null; };
+      if (!summaryBusy && Date.now() - lastSummaryAt >= 5000) {
+        lastSummaryAt = Date.now(); summaryBusy = true;
+        void api.get('/dashboard/summary').then(sum => { if (sum.success) setSummary(sum.summary); }).finally(() => { summaryBusy = false; });
+      }
+    });
+    refreshQueue.current = queue;
+    void queue.request();
+    const unsubscribe = api.subscribeRealtime(event => {
+      if (['NEW_READING', 'TANK_UPDATED', 'DEVICE_STATUS_CHANGED'].includes(event) || (event === 'SYNC' && streamState === 'polling')) {
+        void readings.request();
+        if (streamState === 'polling' && Date.now() - lastFullAt >= 15000) {
+          lastFullAt = Date.now(); void queue.request();
+        }
+      } else {
+        lastFullAt = Date.now(); void queue.request();
+      }
+    }, { onStatus: next => { streamState = next; setConnState(next); } });
+    return () => { readings.close(); queue.close(); unsubscribe(); refreshQueue.current = null; };
   }, []);
 
   const handleSelectTank = (tankId) => {
@@ -81,6 +98,7 @@ function MainApp() {
       case 'dashboard': return 'Water Monitoring Dashboard';
       case 'analytics': return 'Tank Telemetry Analytics';
       case 'reports': return 'Citizen Community Reports';
+      case 'report-analytics': return 'Report intelligence';
       case 'map': return 'Geographic Infrastructure Map';
       case 'alerts': return 'Telemetry Alerts Center';
       case 'simulator': return 'ESP32 Hardware Simulator';
@@ -127,7 +145,7 @@ function MainApp() {
             <span className="conn-text">
               {connState === 'connecting'
                 ? 'Connecting to the SmartWater API…'
-                : 'Live stream unavailable — refreshing every 5s instead.'}
+                : 'Live stream unavailable — checking tank readings every second.'}
               {lastSyncAt ? ` Last sync ${lastSyncAt.toLocaleTimeString()}.` : ''}
               {' '}Free-tier servers may take up to a minute to wake.
             </span>
