@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { after, before } from 'node:test';
 import crypto from 'node:crypto';
-import { shutdownServer } from '../src/server.js';
+import { shutdownServer, telemetryBridge } from '../src/server.js';
 
 const BASE_URL = 'http://localhost:5000';
 const API_KEY = 'test-device-credential-123456789';
@@ -236,6 +236,32 @@ test('accepted telemetry persists and triggers a privacy-safe SSE invalidation',
   } finally { controller.abort(); }
 });
 
+test('a direct database write is relayed to SSE and fresh API reads without HTTP ingestion', async () => {
+  const { db } = await import('../src/database/db.js');
+  const controller = new AbortController();
+  const stream = await fetch(`${BASE_URL}/api/realtime/stream`, { signal: controller.signal });
+  const reader = stream.body.getReader();
+  let timeout;
+  try {
+    await reader.read();
+    await telemetryBridge.check(); // establish a baseline while the viewer is connected
+    const before = await db.get('SELECT * FROM tanks WHERE tank_id_code = ?', tankCode);
+    const stamp = new Date().toISOString();
+    await db.run('UPDATE tanks SET current_water_percent = ?, last_reading_at = ? WHERE id = ?', 47.25, stamp, before.id);
+    await telemetryBridge.check();
+    const event = await Promise.race([reader.read(), new Promise((_, reject) => {
+      timeout = setTimeout(() => reject(new Error('Direct database change did not reach SSE')), 2000);
+    })]);
+    const text = new TextDecoder().decode(event.value);
+    assert.match(text, /event: NEW_READING/);
+    assert.ok(!text.includes(tankCode));
+    const token = await loginAsAdmin();
+    const response = await fetch(`${BASE_URL}/api/tanks/${tankCode}`, { headers: { Authorization: `Bearer ${token}` } });
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.equal((await response.json()).data.current_water_percent, 47.25);
+  } finally { clearTimeout(timeout); controller.abort(); }
+});
+
 test('calibration history is accessible to administrators only', async () => {
   const token = await loginAsAdmin();
   assert.equal((await fetch(`${BASE_URL}/api/installations`)).status, 401);
@@ -338,3 +364,4 @@ test('history includes SQLite-formatted readings inside the requested window', a
   const response=await (await fetch(`${BASE_URL}/api/iot/history/${tankCode}?range=24h`)).json();
   assert.ok(response.data.some(r=>r.id===id));
 });
+

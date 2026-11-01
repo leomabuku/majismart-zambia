@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { api } from './services/api';
+import { createRefreshQueue } from './services/refreshQueue';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
@@ -30,6 +31,8 @@ function MainApp() {
   // 'connecting' | 'live' | 'polling' — driven by the real SSE/polling fallback.
   const [connState, setConnState] = useState('connecting');
   const [lastSyncAt, setLastSyncAt] = useState(null);
+  const [telemetryRevision, setTelemetryRevision] = useState(0);
+  const refreshQueue = useRef(null);
 
   // Load baseline data from Shared Backend
   const reloadData = async () => {
@@ -47,66 +50,25 @@ function MainApp() {
       if (tkRes.success) setTanks(tkRes.data);
       if (altRes.success) setAlerts(altRes.data);
       if (repRes.success) setReports(repRes.data);
+      setLastSyncAt(new Date());
     } catch (err) {
       console.error('[MajiSmart] Failed to load data:', err);
     }
   };
 
-  // Lightweight refresh used while the SSE stream is unavailable (3 requests
-  // instead of 5, so a sleeping free-tier instance is not hammered).
-  const syncLive = async () => {
-    const [sumRes, tkRes, altRes, repRes] = await Promise.all([
-      api.get('/dashboard/summary'),
-      api.get('/tanks'),
-      api.get('/alerts'),
-      api.get('/reports')
-    ]);
-    if (sumRes.success) setSummary(sumRes.summary);
-    if (tkRes.success) setTanks(tkRes.data);
-    if (altRes.success) setAlerts(altRes.data);
-    if (repRes.success) setReports(repRes.data);
-    setLastSyncAt(new Date());
-  };
-
   useEffect(() => {
-    reloadData();
-
-    // Subscribe to Server-Sent Events (Realtime)
-    const unsubscribe = api.subscribeRealtime((event, data) => {
-      if (event === 'SYNC') {
-        syncLive();
-        return;
+    const queue = createRefreshQueue(reloadData, error => console.error('[Realtime] Refresh failed:', error));
+    refreshQueue.current = queue;
+    void queue.request();
+    const unsubscribe = api.subscribeRealtime((event) => {
+      if (['SYNC', 'NEW_READING', 'TANK_UPDATED', 'DEVICE_STATUS_CHANGED'].includes(event)) {
+        setTelemetryRevision(value => value + 1);
       }
-
-      setLastSyncAt(new Date());
-
-      if (event === 'NEW_READING') {
-        syncLive();
-      }
-
-      if (event === 'TANK_UPDATED') {
-        api.get('/tanks').then(res => { if (res.success) setTanks(res.data); });
-        // Refresh summary metrics
-        api.get('/dashboard/summary').then(res => { if (res.success) setSummary(res.summary); });
-      }
-
-      if (event === 'NEW_ALERT' || event === 'ALERT_RESOLVED' || event === 'ALERT_UPDATED') {
-        api.get('/alerts').then(res => { if (res.success) setAlerts(res.data); });
-        api.get('/dashboard/summary').then(res => { if (res.success) setSummary(res.summary); });
-      }
-
-      if (event === 'REPORT_CREATED' || event === 'REPORT_STATUS_CHANGED') {
-        api.get('/reports').then(res => { if (res.success) setReports(res.data); });
-        api.get('/dashboard/summary').then(res => { if (res.success) setSummary(res.summary); });
-      }
-
-      if (event === 'DEVICE_STATUS_CHANGED') {
-        api.get('/tanks').then(res => { if (res.success) setTanks(res.data); });
-        api.get('/dashboard/summary').then(res => { if (res.success) setSummary(res.summary); });
-      }
+      // Public events are invalidations. Read the actual values through the
+      // authenticated API immediately, rather than waiting for a polling tick.
+      void queue.request();
     }, { onStatus: setConnState });
-
-    return () => unsubscribe();
+    return () => { queue.close(); unsubscribe(); refreshQueue.current = null; };
   }, []);
 
   const handleSelectTank = (tankId) => {
@@ -144,7 +106,7 @@ function MainApp() {
       <div className="main-wrapper">
         <Topbar 
           title={getPageTitle()} 
-          onRefresh={reloadData}
+          onRefresh={() => refreshQueue.current?.request()}
           lastPacket={lastTelemetry}
           isConnected={isConnected}
           onOpenMobile={() => setShowMobileApp(true)}
@@ -165,7 +127,7 @@ function MainApp() {
             <span className="conn-text">
               {connState === 'connecting'
                 ? 'Connecting to the SmartWater API…'
-                : 'Live stream unavailable — refreshing every 30s instead.'}
+                : 'Live stream unavailable — refreshing every 5s instead.'}
               {lastSyncAt ? ` Last sync ${lastSyncAt.toLocaleTimeString()}.` : ''}
               {' '}Free-tier servers may take up to a minute to wake.
             </span>
@@ -188,6 +150,7 @@ function MainApp() {
 
           {activeTab === 'analytics' && isAdmin && (
             <TankAnalytics 
+              refreshVersion={telemetryRevision}
               selectedTankId={selectedTankId}
               onBack={() => setActiveTab('dashboard')}
               tanks={tanks}
@@ -267,3 +230,4 @@ export default function App() {
     </AuthProvider>
   );
 }
+
