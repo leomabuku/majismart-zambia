@@ -15,8 +15,9 @@ if (process.env.NODE_ENV === 'production') {
   }
 }
 
-import { initDatabase, db, databaseMode, describeDatabaseTarget, databaseUrlWarnings } from './database/db.js';
+import { initDatabase, db, databaseMode, describeDatabaseTarget, databaseUrlWarnings, supabase } from './database/db.js';
 import { realtime } from './services/realtimeService.js';
+import { TelemetryChangeBridge } from './services/telemetryChangeBridge.js';
 import { DeviceMonitorService } from './services/deviceMonitorService.js';
 import { DemoTelemetryService } from './services/demoTelemetryService.js';
 import { isGoogleAuthConfigured } from './services/googleAuthService.js';
@@ -64,6 +65,18 @@ DeviceMonitorService.start();
 // Optional synthetic telemetry (DEMO_MODE=true) - keeps a hardware-less demo alive.
 DemoTelemetryService.start();
 
+// Edge Functions and other API instances commit directly to Supabase, bypassing
+// this process's ingestion broadcasts. Relay their changes through the same SSE.
+export const telemetryBridge = new TelemetryChangeBridge({
+  client: databaseMode === 'supabase' && process.env.SUPABASE_SERVICE_ROLE_KEY ? supabase : null,
+  readState: () => db.all(`SELECT id, last_reading_at, current_water_percent,
+    current_water_depth_cm, current_status FROM tanks ORDER BY id`),
+  onChange: () => realtime.broadcast('NEW_READING', {}),
+  hasViewers: () => realtime.getClientCount() > 0,
+  pollMs: Number(process.env.TELEMETRY_CHANGE_CHECK_MS || 2000)
+});
+telemetryBridge.start();
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -86,6 +99,10 @@ app.use(cors({
 }));
 
 // Body parsers
+app.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
 app.use(express.json({ limit: '10mb' })); // Support base64 image uploads in reports
 app.use(express.urlencoded({ extended: true }));
 
@@ -101,6 +118,7 @@ app.get('/api/health', async (req, res) => {
     timestamp: new Date().toISOString(),
     sse_clients: realtime.getClientCount(),
     db_mode: databaseMode,
+    telemetry_updates: telemetryBridge.status(),
     // Lets an operator confirm the Google OAuth client id reached this instance
     // without reading the env var. Never exposes the value itself.
     google_signin: isGoogleAuthConfigured()
@@ -249,11 +267,13 @@ export function shutdownServer() {
   DemoTelemetryService.stop();
   // SSE streams never finish on their own; close them so server.close() can resolve.
   realtime.closeAll();
+  const bridgeStopped = telemetryBridge.stop();
   return new Promise((resolve, reject) => {
     server.close(async (err) => {
       if (err) reject(err);
       else {
         try {
+          await bridgeStopped;
           await db.close();
           resolve();
         } catch (closeError) {
@@ -292,3 +312,4 @@ if (isEntryPoint) {
 
 export { server };
 export default app;
+

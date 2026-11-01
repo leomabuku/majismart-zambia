@@ -26,7 +26,7 @@ ChartJS.register(
   Filler
 );
 
-export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
+export default function TankAnalytics({ selectedTankId, onBack, tanks, refreshVersion = 0 }) {
   const { isAdmin } = useAuth();
   const [tankId, setTankId] = useState(selectedTankId || 'TANK_001');
   const [tankData, setTankData] = useState(null);
@@ -62,6 +62,14 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
   useEffect(() => {
     loadTank();
   }, [tankId]);
+
+  useEffect(() => {
+    let active = true;
+    api.get(`/tanks/${encodeURIComponent(tankId)}`).then(res => {
+      if (active && res.success) setTankData(res.data);
+    }).catch(error => console.warn('[Telemetry] Chart refresh failed:', error));
+    return () => { active = false; };
+  }, [tankId, refreshVersion]);
 
   const handleSaveConfig = async (e) => {
     e.preventDefault();
@@ -381,3 +389,4 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
     </div>
   );
 }
+
