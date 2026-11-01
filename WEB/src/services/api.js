@@ -33,7 +33,7 @@ if (typeof console !== 'undefined') {
 
 const REQUEST_TIMEOUT_MS = 70000; // covers a cold start on the free instance
 const RETRY_DELAY_MS = 2500;
-const POLL_INTERVAL_MS = 5000;
+const POLL_INTERVAL_MS = 1000;
 const SSE_RETRY_MS = 60000;
 
 const REALTIME_EVENTS = [

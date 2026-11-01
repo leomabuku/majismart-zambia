@@ -12,7 +12,7 @@ it subscribes to Postgres changes on `public.water_level_readings` and
 publication for push delivery. RLS, table read policies and browser keys do not
 need to be weakened. Never put the service role key in frontend variables.
 
-A read-only fallback compares the small tank-state snapshot every 2 seconds
+A read-only fallback compares the small tank-state snapshot every 1 second
 while SSE clients are connected. It covers missing credentials, unpublished
 tables, connection failures and writes from other processes. This fallback is
 near-real-time polling, not a substitute for verifying Supabase push events.
@@ -31,7 +31,7 @@ Frontend events now trigger a serialized refresh with a catch-up request if
 another reading arrives during a fetch. Tank history refreshes on those events
 as well, without resetting the administrator's unsaved configuration fields.
 When SSE itself fails, the browser reports its degraded state and refreshes
-every 5 seconds rather than every 30 seconds.
+every second, with heavier dashboard and report refreshes throttled.
 
 Validation covers an actual local direct database update -> SSE -> uncached API
 read, as well as Supabase callback delivery, reconnect, fallback, shutdown,

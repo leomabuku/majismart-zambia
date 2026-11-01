@@ -3,6 +3,12 @@ import assert from 'node:assert/strict';
 import { TelemetryChangeBridge } from '../src/services/telemetryChangeBridge.js';
 
 const flush = () => new Promise(resolve => setImmediate(resolve));
+test('fallback checks default to one second and reject invalid intervals', () => {
+  for (const value of [undefined, NaN, 10]) {
+    const bridge = new TelemetryChangeBridge({ readState: async () => [], onChange: () => {}, pollMs: value });
+    assert.equal(bridge.status().check_interval_ms, 1000);
+  }
+});
 function setup(overrides = {}) {
   const handlers = [];
   let subscribe, removed = 0, notifications = 0, state = [{ id: 'tank-001', last_reading_at: 'initial' }];

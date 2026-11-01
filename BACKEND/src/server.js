@@ -79,7 +79,7 @@ export const telemetryBridge = new TelemetryChangeBridge({
     current_water_depth_cm, current_status FROM tanks ORDER BY id`),
   onChange: () => realtime.broadcast('NEW_READING', {}),
   hasViewers: () => realtime.getClientCount() > 0,
-  pollMs: Number(process.env.TELEMETRY_CHANGE_CHECK_MS || 2000)
+  pollMs: Number(process.env.TELEMETRY_CHANGE_CHECK_MS || 1000)
 });
 telemetryBridge.start();
 
