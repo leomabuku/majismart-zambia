@@ -7,6 +7,7 @@ export default function Dashboard({ summary, tanks, alerts, reports, onSelectTan
   const [filter, setFilter] = useState('ALL');
 
   const filteredTanks = tanks.filter(tank => {
+    if (filter !== 'ALL' && filter !== 'OFFLINE' && (tank.telemetry_missing || tank.current_status === 'OFFLINE' || tank.device_status === 'OFFLINE')) return false;
     if (filter === 'NORMAL') return tank.current_status === 'NORMAL' && tank.current_water_percent > 25;
     if (filter === 'LOW') return tank.current_status === 'LOW' || (tank.current_water_percent <= 25 && tank.current_water_percent > 15);
     if (filter === 'CRITICAL') return tank.current_status === 'CRITICAL' || tank.current_water_percent <= 15;
@@ -21,8 +22,8 @@ export default function Dashboard({ summary, tanks, alerts, reports, onSelectTan
         <div className="telemetry-ticker" style={{ borderRadius: '12px', marginBottom: '24px' }}>
           <div className="ticker-left">
             <span className="live-pulse-dot" />
-            <span style={{ fontWeight: 600, color: '#38BDF8' }}>LIVE ESP32 PACKET:</span>
-            <span>Device: <strong>{lastTelemetry.device_id}</strong></span>
+            <span style={{ fontWeight: 600, color: '#38BDF8' }}>LATEST SENSOR READING:</span>
+            <span>Device: <strong>{lastTelemetry.device_id || 'Not supplied'}</strong></span>
             <span>•</span>
             <span>Tank: <strong>{lastTelemetry.tank_id}</strong></span>
             <span>•</span>
@@ -31,7 +32,7 @@ export default function Dashboard({ summary, tanks, alerts, reports, onSelectTan
             <span>Level: <strong>{lastTelemetry.water_level_percent}%</strong></span>
           </div>
           <span style={{ fontSize: '11px', color: '#94A3B8' }}>
-            {new Date(lastTelemetry.recorded_at).toLocaleTimeString()}
+            {new Date(lastTelemetry.recorded_at || lastTelemetry.created_at).toLocaleTimeString()}
           </span>
         </div>
       )}
@@ -155,3 +156,4 @@ export default function Dashboard({ summary, tanks, alerts, reports, onSelectTan
     </div>
   );
 }
+

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from './services/api';
+import { useTelemetry } from './context/useTelemetry';
+import { usesSupabaseTelemetry } from './services/supabaseTelemetry';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
@@ -22,6 +24,9 @@ function MainApp() {
   const [selectedTankId, setSelectedTankId] = useState('TANK_001');
   const [lastTelemetry, setLastTelemetry] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [dataError, setDataError] = useState(null);
+
+  const telemetry = useTelemetry(tanks, summary);
 
   // Load baseline data from Shared Backend
   const reloadData = async () => {
@@ -39,7 +44,10 @@ function MainApp() {
       if (tkRes.success) setTanks(tkRes.data);
       if (altRes.success) setAlerts(altRes.data);
       if (repRes.success) setReports(repRes.data);
+      setDataError([sumRes, stRes, tkRes, altRes, repRes].some(res => !res.success)
+        ? 'Some dashboard data could not be loaded. Retrying automatically.' : null);
     } catch (err) {
+      setDataError('Unable to load dashboard data from the API. Retrying automatically.');
       console.error('[MajiSmart] Failed to load data:', err);
     }
   };
@@ -49,9 +57,7 @@ function MainApp() {
 
     // Subscribe to Server-Sent Events (Realtime)
     const unsubscribe = api.subscribeRealtime((event, data) => {
-      setIsConnected(true);
-
-      if (event === 'NEW_READING') {
+      if (!usesSupabaseTelemetry && event === 'NEW_READING') {
         setLastTelemetry(data);
       }
 
@@ -75,10 +81,9 @@ function MainApp() {
         api.get('/tanks').then(res => { if (res.success) setTanks(res.data); });
         api.get('/dashboard/summary').then(res => { if (res.success) setSummary(res.summary); });
       }
-    });
-
-    setIsConnected(true);
-    return () => unsubscribe();
+    }, setIsConnected);
+    const timer = setInterval(reloadData, 15000);
+    return () => { unsubscribe(); clearInterval(timer); };
   }, []);
 
   const handleSelectTank = (tankId) => {
@@ -108,21 +113,21 @@ function MainApp() {
         setActiveTab={setActiveTab} 
         alertCount={activeAlertsCount}
         reportCount={openReportsCount}
-        isLive={isConnected}
+        isLive={usesSupabaseTelemetry ? telemetry.connected : isConnected}
       />
 
       <div className="main-wrapper">
         <Topbar 
           title={getPageTitle()} 
           onRefresh={reloadData}
-          lastPacket={lastTelemetry}
-          isConnected={isConnected}
+          lastPacket={usesSupabaseTelemetry ? telemetry.latest : lastTelemetry}
+          isConnected={usesSupabaseTelemetry ? telemetry.connected : isConnected}
           onOpenMobile={() => setShowMobileApp(true)}
         />
 
         {showMobileApp && (
           <MobileAppSimulator 
-            tanks={tanks}
+            tanks={telemetry.tanks}
             reports={reports}
             onReload={reloadData}
             onClose={() => setShowMobileApp(false)}
@@ -130,14 +135,16 @@ function MainApp() {
         )}
 
         <main className="content-area">
+          {dataError && <div role="alert" style={{ padding: 16, marginBottom: 16, background: '#FFFBEB', color: '#92400E' }}>{dataError}</div>}
+          {telemetry.error && <div role="alert" style={{ padding: 16, marginBottom: 16, background: '#FFFBEB', color: '#92400E' }}>{telemetry.error}</div>}
           {activeTab === 'dashboard' && (
             <Dashboard 
-              summary={summary}
-              tanks={tanks}
+              summary={telemetry.summary}
+              tanks={telemetry.tanks}
               alerts={alerts}
               reports={reports}
               onSelectTank={handleSelectTank}
-              lastTelemetry={lastTelemetry}
+              lastTelemetry={usesSupabaseTelemetry ? telemetry.latest : lastTelemetry}
             />
           )}
 
@@ -145,7 +152,7 @@ function MainApp() {
             <TankAnalytics 
               selectedTankId={selectedTankId}
               onBack={() => setActiveTab('dashboard')}
-              tanks={tanks}
+              tanks={telemetry.tanks}
             />
           )}
 
@@ -159,7 +166,7 @@ function MainApp() {
           {activeTab === 'map' && (
             <IncidentMap 
               stations={stations}
-              tanks={tanks}
+              tanks={telemetry.tanks}
               reports={reports}
             />
           )}
@@ -177,7 +184,7 @@ function MainApp() {
                 setLastTelemetry(data);
                 reloadData();
               }}
-              lastPacket={lastTelemetry}
+              lastPacket={usesSupabaseTelemetry ? telemetry.latest : lastTelemetry}
             />
           )}
         </main>
@@ -193,3 +200,4 @@ export default function App() {
     </AuthProvider>
   );
 }
+

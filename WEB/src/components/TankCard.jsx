@@ -3,10 +3,13 @@ import { Wifi, WifiOff, Clock, Gauge, ArrowRight } from 'lucide-react';
 
 export default function TankCard({ tank, onClick }) {
   const percent = tank.current_water_percent ?? 0;
+  const missing = tank.telemetry_missing;
   const status = tank.current_status || 'NORMAL';
   const isOffline = status === 'OFFLINE' || tank.device_status === 'OFFLINE';
 
   const getStatusBadge = () => {
+    if (missing) return <span className="badge badge-offline">No readings</span>;
+    if (status === 'SENSOR_ERROR') return <span className="badge badge-critical">Sensor error</span>;
     if (isOffline) return <span className="badge badge-offline">Offline</span>;
     if (status === 'CRITICAL' || percent <= 15) return <span className="badge badge-critical">Critical ({percent}%)</span>;
     if (status === 'LOW' || percent <= 25) return <span className="badge badge-low">Low ({percent}%)</span>;
@@ -50,10 +53,10 @@ export default function TankCard({ tank, onClick }) {
           <div className="metric-big" style={{ 
             color: (status === 'CRITICAL' || percent <= 15) ? '#EF4444' : (status === 'LOW' || percent <= 25) ? '#D97706' : '#0284C7' 
           }}>
-            {percent}%
+            {missing ? '—' : `${percent}%`}
           </div>
           <div className="metric-sub">
-            Depth: <strong>{tank.current_water_depth_cm ?? 0} cm</strong> / {tank.total_height_cm} cm
+            Depth: <strong>{missing ? '—' : tank.current_water_depth_cm} cm</strong> / {tank.total_height_cm} cm
           </div>
           <div className="metric-sub" style={{ fontSize: '11px', color: '#64748B' }}>
             Capacity: {(tank.capacity_liters || 10000).toLocaleString()} L
@@ -75,3 +78,4 @@ export default function TankCard({ tank, onClick }) {
     </div>
   );
 }
+

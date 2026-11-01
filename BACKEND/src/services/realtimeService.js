@@ -12,9 +12,14 @@ class RealtimeService {
 
     // Initial keepalive comment
     res.write(': connected to MajiSmart Realtime Stream\n\n');
+    const heartbeat = setInterval(() => {
+      res.write(': heartbeat\n\n');
+    }, 25000);
+    heartbeat.unref?.();
 
     // Remove client on connection close
     res.on('close', () => {
+      clearInterval(heartbeat);
       this.clients.delete(res);
     });
   }
@@ -43,3 +48,4 @@ class RealtimeService {
 }
 
 export const realtime = new RealtimeService();
+

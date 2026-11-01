@@ -43,8 +43,9 @@ export const api = {
     return res.json();
   },
 
-  subscribeRealtime(onMessage) {
+  subscribeRealtime(onMessage, onStatus = () => {}) {
     const eventSource = new EventSource(`${API_BASE}/realtime/stream`);
+    eventSource.onopen = () => onStatus(true);
     const eventTypes = [
       'NEW_READING',
       'TANK_UPDATED',
@@ -63,9 +64,11 @@ export const api = {
     });
 
     eventSource.onerror = (err) => {
+      onStatus(false);
       console.warn('[SSE] Reconnecting to realtime stream...', err);
     };
 
-    return () => eventSource.close();
+    return () => { eventSource.close(); };
   }
 };
+

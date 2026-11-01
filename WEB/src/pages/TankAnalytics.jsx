@@ -12,6 +12,7 @@ import {
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import { api } from '../services/api';
+import { telemetrySource, usesSupabaseTelemetry } from '../services/supabaseTelemetry';
 import { useAuth } from '../context/AuthContext';
 import { Wifi, Clock, ArrowLeft, Settings, Check, AlertCircle } from 'lucide-react';
 
@@ -29,12 +30,36 @@ ChartJS.register(
 export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
   const { isAdmin } = useAuth();
   const [tankId, setTankId] = useState(selectedTankId || 'TANK_001');
-  const [tankData, setTankData] = useState(null);
+  const [storedTankData, setTankData] = useState(null);
+  const tankData = usesSupabaseTelemetry
+    ? { ...storedTankData, ...tanks.find(t => t.tank_id_code === tankId || t.id === tankId) }
+    : storedTankData;
   const [range, setRange] = useState('24h');
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
   const [formData, setFormData] = useState({});
   const [saveMsg, setSaveMsg] = useState('');
+  const [sourceReadings, setSourceReadings] = useState([]);
+  const [sourceError, setSourceError] = useState('');
+
+  useEffect(() => {
+    if (!telemetrySource) return;
+    let active = true;
+    setSourceReadings([]);
+    const refresh = async () => {
+      try {
+        const readings = await telemetrySource.history(tankId);
+        if (active) { setSourceReadings(readings); setSourceError(''); }
+      } catch { if (active) setSourceError('Unable to load Supabase reading history.'); }
+    };
+    void refresh();
+    const stop = telemetrySource.watch([tankId], {
+      onReading: () => { void refresh(); },
+      onStatus: () => {},
+      onError: error => { if (active && error) setSourceError(error); }
+    });
+    return () => { active = false; stop(); };
+  }, [tankId]);
 
   useEffect(() => {
     if (selectedTankId) setTankId(selectedTankId);
@@ -56,6 +81,7 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
           });
         }
       })
+      .catch(() => setSourceError('Unable to load tank details.'))
       .finally(() => setLoading(false));
   };
 
@@ -78,7 +104,8 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
     return <div style={{ padding: '40px', textAlign: 'center' }}>Loading tank telemetry analytics...</div>;
   }
 
-  const readings = tankData?.recent_readings || [];
+  // Keep the chart aligned with the same source as the tank cards.
+  const readings = usesSupabaseTelemetry ? sourceReadings : (tankData?.recent_readings || []);
   const percentValues = readings.map(r => r.water_level_percent);
   const minPercent = percentValues.length ? Math.min(...percentValues) : 0;
   const maxPercent = percentValues.length ? Math.max(...percentValues) : 0;
@@ -278,10 +305,10 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
         <div className="stat-card">
           <span style={{ fontSize: '12px', color: '#64748B', fontWeight: 600 }}>CURRENT WATER LEVEL</span>
           <div style={{ fontSize: '32px', fontWeight: 800, color: '#0284C7', marginTop: '6px' }}>
-            {tankData.current_water_percent}%
+            {tankData.current_water_percent ?? '—'}%
           </div>
           <span style={{ fontSize: '13px', color: '#475569' }}>
-            Depth: {tankData.current_water_depth_cm} cm
+            Depth: {tankData.current_water_depth_cm ?? '—'} cm
           </span>
         </div>
 
@@ -307,7 +334,7 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
             {tankData.device_id_code || 'ESP32_001'}
           </div>
           <span style={{ fontSize: '12px', color: tankData.device_status === 'ONLINE' ? '#10B981' : '#64748B', fontWeight: 600 }}>
-            ● {tankData.device_status || 'ONLINE'} (Last: {new Date(tankData.last_reading_at || Date.now()).toLocaleTimeString()})
+            ● {tankData.device_status || 'ONLINE'} (Last: {tankData.last_reading_at ? new Date(tankData.last_reading_at).toLocaleTimeString() : 'No readings'})
           </span>
         </div>
       </div>
@@ -342,7 +369,8 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
         </div>
 
         <div style={{ height: '340px' }}>
-          <Line data={chartData} options={chartOptions} />
+          {sourceError && <p role="alert">{sourceError}</p>}
+            <Line data={chartData} options={chartOptions} />
         </div>
       </div>
 
@@ -381,3 +409,4 @@ export default function TankAnalytics({ selectedTankId, onBack, tanks }) {
     </div>
   );
 }
+
