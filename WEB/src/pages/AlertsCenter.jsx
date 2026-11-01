@@ -37,8 +37,8 @@ export default function AlertsCenter({ alerts, onReload }) {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
-          <h2 style={{ fontSize: '22px', color: '#03045E' }}>Telemetry Alerts & Exception Center</h2>
-          <p style={{ fontSize: '14px', color: '#64748B' }}>
+          <h2 style={{ fontSize: '1.375rem', color: '#03045E' }}>Telemetry Alerts & Exception Center</h2>
+          <p style={{ fontSize: '0.875rem', color: '#64748B' }}>
             Automated threshold violation alerts, offline timeouts, and recovery logs
           </p>
         </div>
@@ -52,7 +52,7 @@ export default function AlertsCenter({ alerts, onReload }) {
               style={{
                 padding: '6px 14px',
                 borderRadius: '6px',
-                fontSize: '14px',
+                fontSize: '0.875rem',
                 fontWeight: 600,
                 background: filterStatus === st ? '#FFFFFF' : 'transparent',
                 color: filterStatus === st ? '#03045E' : '#475569',
@@ -97,7 +97,7 @@ export default function AlertsCenter({ alerts, onReload }) {
 
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <h3 style={{ fontSize: '16px', color: '#0F172A' }}>{alert.title}</h3>
+                      <h3 style={{ fontSize: '1rem', color: '#0F172A' }}>{alert.title}</h3>
                       <span className={`badge ${isCritical ? 'badge-critical' : isWarning ? 'badge-low' : 'badge-normal'}`}>
                         {alert.severity}
                       </span>
@@ -106,11 +106,11 @@ export default function AlertsCenter({ alerts, onReload }) {
                       </span>
                     </div>
 
-                    <p style={{ fontSize: '14px', color: '#475569', marginTop: '6px' }}>
+                    <p style={{ fontSize: '0.875rem', color: '#475569', marginTop: '6px' }}>
                       {alert.message}
                     </p>
 
-                    <div style={{ display: 'flex', gap: '16px', fontSize: '14px', color: '#64748B', marginTop: '8px' }}>
+                    <div style={{ display: 'flex', gap: '16px', fontSize: '0.875rem', color: '#64748B', marginTop: '8px' }}>
                       <span>Tank: <strong>{alert.tank_name || alert.tank_id_code}</strong></span>
                       <span>Device: <strong>{alert.device_id || 'ESP32'}</strong></span>
                       <span>Triggered: <strong>{new Date(alert.created_at).toLocaleString()}</strong></span>
@@ -126,7 +126,7 @@ export default function AlertsCenter({ alerts, onReload }) {
                         onClick={() => handleAcknowledge(alert.id)}
                         disabled={loadingId === alert.id}
                         className="btn-secondary"
-                        style={{ fontSize: '14px', padding: '6px 12px' }}
+                        style={{ fontSize: '0.875rem', padding: '6px 12px' }}
                       >
                         Acknowledge
                       </button>
@@ -135,7 +135,7 @@ export default function AlertsCenter({ alerts, onReload }) {
                       onClick={() => handleResolve(alert.id)}
                       disabled={loadingId === alert.id}
                       className="btn-primary"
-                      style={{ fontSize: '14px', padding: '6px 12px' }}
+                      style={{ fontSize: '0.875rem', padding: '6px 12px' }}
                     >
                       Mark Resolved
                     </button>

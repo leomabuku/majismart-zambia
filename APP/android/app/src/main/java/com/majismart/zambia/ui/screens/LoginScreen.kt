@@ -107,6 +107,7 @@ fun LoginScreen(api: MajiSmartApiService) {
             modifier = Modifier
                 .widthIn(max = 560.dp)
                 .fillMaxSize()
+                .systemBarsPadding()
                 .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 22.dp, vertical = 32.dp),

@@ -155,8 +155,8 @@ export default function CommunityReports({ reports, onReload }) {
       {/* Header & Controls */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
-          <h2 style={{ fontSize: '22px', color: '#03045E' }}>Community Water Reports</h2>
-          <p style={{ fontSize: '14px', color: '#64748B' }}>
+          <h2 style={{ fontSize: '1.375rem', color: '#03045E' }}>Community Water Reports</h2>
+          <p style={{ fontSize: '0.875rem', color: '#64748B' }}>
             Citizen-submitted alerts on leakages, water cuts, burst pipes, and quality issues
           </p>
         </div>
@@ -173,7 +173,7 @@ export default function CommunityReports({ reports, onReload }) {
 
       {/* Filters Bar */}
       <div style={{ display: 'flex', gap: '16px', background: 'white', padding: '16px 20px', borderRadius: '12px', border: '1px solid #E2E8F0', marginBottom: '24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', color: '#64748B' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.875rem', color: '#64748B' }}>
           <Filter size={16} />
           <span style={{ fontWeight: 600 }}>Filter:</span>
         </div>
@@ -182,7 +182,7 @@ export default function CommunityReports({ reports, onReload }) {
           value={filterCategory} 
           onChange={e => setFilterCategory(e.target.value)} 
           className="form-select"
-          style={{ width: 'auto', padding: '6px 12px', fontSize: '14px' }}
+          style={{ width: 'auto', padding: '6px 12px', fontSize: '0.875rem' }}
         >
           <option value="ALL">All Categories</option>
           <option value="WATER_SHORTAGE">Water Shortage</option>
@@ -201,7 +201,7 @@ export default function CommunityReports({ reports, onReload }) {
           value={filterStatus} 
           onChange={e => setFilterStatus(e.target.value)} 
           className="form-select"
-          style={{ width: 'auto', padding: '6px 12px', fontSize: '14px' }}
+          style={{ width: 'auto', padding: '6px 12px', fontSize: '0.875rem' }}
         >
           <option value="ALL">All Statuses</option>
           <option value="SUBMITTED">Submitted</option>
@@ -229,25 +229,25 @@ export default function CommunityReports({ reports, onReload }) {
           <tbody>
             {filtered.map(report => (
               <tr key={report.id}>
-                <td style={{ fontFamily: 'var(--font-mono)', fontSize: '14px', fontWeight: 600, color: '#0077B6' }}>
+                <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.875rem', fontWeight: 600, color: '#0077B6' }}>
                   {report.id}
                 </td>
                 <td>
-                  <span style={{ fontSize: '14px', fontWeight: 600, color: '#334155' }}>
+                  <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#334155' }}>
                     {(report.reported_category || report.category).replaceAll('_', ' ')}
                   </span>
                 </td>
                 <td>
                   <div style={{ fontWeight: 600, color: '#0F172A' }}>{report.title}</div>
-                  <div style={{ fontSize: '14px', color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                  <div style={{ fontSize: '0.875rem', color: '#64748B', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
                     <MapPin size={12} /> {report.location_name}
                   </div>
                 </td>
-                <td style={{ fontSize: '14px' }}>
+                <td style={{ fontSize: '0.875rem' }}>
                   <div>{report.reporter_name_profile || report.reporter_name || 'Resident'}</div>
-                  <div style={{ fontSize: '14px', color: '#64748B' }}>{report.reporter_phone_profile || report.reporter_phone || 'No phone'}</div>
+                  <div style={{ fontSize: '0.875rem', color: '#64748B' }}>{report.reporter_phone_profile || report.reporter_phone || 'No phone'}</div>
                 </td>
-                <td style={{ fontSize: '14px', color: '#64748B' }}>
+                <td style={{ fontSize: '0.875rem', color: '#64748B' }}>
                   {new Date(report.created_at).toLocaleDateString()} {new Date(report.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </td>
                 <td>
@@ -260,7 +260,7 @@ export default function CommunityReports({ reports, onReload }) {
                       setStatusAction({ status: report.status, notes: report.admin_notes || '', reason: report.rejection_reason || '' });
                     }}
                     className="btn-secondary"
-                    style={{ padding: '6px 12px', fontSize: '14px' }}
+                    style={{ padding: '6px 12px', fontSize: '0.875rem' }}
                   >
                     View & Manage
                   </button>
@@ -284,13 +284,13 @@ export default function CommunityReports({ reports, onReload }) {
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
               <div>
-                <span style={{ fontSize: '14px', color: '#0077B6', fontWeight: 700 }}>{selectedReport.id}</span>
-                <h3 style={{ fontSize: '18px', color: '#03045E', marginTop: '2px' }}>{selectedReport.title}</h3>
+                <span style={{ fontSize: '0.875rem', color: '#0077B6', fontWeight: 700 }}>{selectedReport.id}</span>
+                <h3 style={{ fontSize: '1.125rem', color: '#03045E', marginTop: '2px' }}>{selectedReport.title}</h3>
               </div>
-              <button onClick={() => setSelectedReport(null)} style={{ color: '#64748B', fontSize: '20px' }}>&times;</button>
+              <button onClick={() => setSelectedReport(null)} style={{ color: '#64748B', fontSize: '1.25rem' }}>&times;</button>
             </div>
 
-            <div style={{ background: '#F8FAFC', padding: '14px', borderRadius: '8px', marginBottom: '16px', fontSize: '14px' }}>
+            <div style={{ background: '#F8FAFC', padding: '14px', borderRadius: '8px', marginBottom: '16px', fontSize: '0.875rem' }}>
               <p><strong>Description:</strong> {selectedReport.description}</p>
               <p><strong>Customer-reported category:</strong> {(selectedReport.reported_category || selectedReport.category).replaceAll('_', ' ')}</p>
               {selectedReport.reported_severity && <p><strong>Customer-reported severity:</strong> {selectedReport.reported_severity}</p>}
@@ -316,15 +316,15 @@ export default function CommunityReports({ reports, onReload }) {
             {isAdmin && <CaseManagement reportId={selectedReport.id} />}
 
             {/* Lifecycle History Audit Timeline */}
-            <h4 style={{ fontSize: '16px', marginBottom: '10px', color: '#03045E' }}>Status Progression History</h4>
+            <h4 style={{ fontSize: '1rem', marginBottom: '10px', color: '#03045E' }}>Status Progression History</h4>
             <div style={{ borderLeft: '2px solid #E2E8F0', paddingLeft: '14px', marginLeft: '6px', marginBottom: '20px' }}>
               {selectedReport.history?.map((h, idx) => (
                 <div key={idx} style={{ marginBottom: '10px', position: 'relative' }}>
                   <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#0077B6', position: 'absolute', left: '-19px', top: '4px' }} />
-                  <div style={{ fontSize: '14px', fontWeight: 700 }}>
+                  <div style={{ fontSize: '0.875rem', fontWeight: 700 }}>
                     {h.previous_status ? `${h.previous_status} → ` : ''}{h.new_status}
                   </div>
-                  <div style={{ fontSize: '14px', color: '#64748B' }}>
+                  <div style={{ fontSize: '0.875rem', color: '#64748B' }}>
                     {h.notes || 'Status updated'} • {new Date(h.created_at).toLocaleString()}
                   </div>
                 </div>
@@ -334,7 +334,7 @@ export default function CommunityReports({ reports, onReload }) {
             {/* Admin Status Update Form */}
             {isAdmin ? (
               <form onSubmit={handleUpdateStatus} style={{ borderTop: '1px solid #E2E8F0', paddingTop: '16px' }}>
-                <h4 style={{ fontSize: '16px', marginBottom: '12px', color: '#03045E' }}>Update Report Lifecycle State</h4>
+                <h4 style={{ fontSize: '1rem', marginBottom: '12px', color: '#03045E' }}>Update Report Lifecycle State</h4>
                 <div className="form-group">
                   <label className="form-label">Lifecycle Stage</label>
                   <select 
@@ -380,7 +380,7 @@ export default function CommunityReports({ reports, onReload }) {
                 </div>
               </form>
             ) : (
-              <div style={{ fontSize: '14px', color: '#64748B', fontStyle: 'italic', borderTop: '1px solid #E2E8F0', paddingTop: '12px' }}>
+              <div style={{ fontSize: '0.875rem', color: '#64748B', fontStyle: 'italic', borderTop: '1px solid #E2E8F0', paddingTop: '12px' }}>
                 * Log in as an Administrator to update report statuses and record maintenance actions.
               </div>
             )}
@@ -392,7 +392,7 @@ export default function CommunityReports({ reports, onReload }) {
       {showNewModal && (
         <div className="modal-overlay" onClick={() => setShowNewModal(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h3 style={{ fontSize: '18px', color: '#03045E', marginBottom: '16px' }}>Submit Water Incident Report</h3>
+            <h3 style={{ fontSize: '1.125rem', color: '#03045E', marginBottom: '16px' }}>Submit Water Incident Report</h3>
             <form onSubmit={handleCreateReport}>
               {submitError && <p role="alert" style={{color: "#b91c1c"}}>{submitError}</p>}
               <div className="form-group">

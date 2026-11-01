@@ -20,7 +20,7 @@ export default function Topbar({ title, onRefresh, lastPacket, isConnected, onOp
         <h1 className="topbar-title">{title}</h1>
         
         {/* Realtime Stream Badge */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', background: '#F1F5F9', padding: '4px 10px', borderRadius: '9999px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.875rem', background: '#F1F5F9', padding: '4px 10px', borderRadius: '9999px' }}>
           <span className="live-pulse-dot" style={{ background: isConnected ? '#10B981' : '#F59E0B' }} />
           <span style={{ fontWeight: 600, color: '#334155' }}>
             {isConnected ? 'Live connection' : 'Reconnecting…'}
@@ -40,7 +40,7 @@ export default function Topbar({ title, onRefresh, lastPacket, isConnected, onOp
             border: '1px solid #BAE6FD',
             padding: '6px 14px',
             borderRadius: '10px',
-            fontSize: '14px',
+            fontSize: '0.875rem',
             color: '#0369A1'
           }}>
             {weather.precipitation_mm > 0 ? <CloudRain size={16} color="#0284C7" /> : <Sun size={16} color="#F59E0B" />}
@@ -54,7 +54,7 @@ export default function Topbar({ title, onRefresh, lastPacket, isConnected, onOp
         <button 
           onClick={onOpenMobile} 
           className="btn-secondary"
-          style={{ padding: '7px 12px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', border: '1px solid #BAE6FD', background: '#F0F9FF', color: '#0369A1' }}
+          style={{ padding: '7px 12px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.875rem', border: '1px solid #BAE6FD', background: '#F0F9FF', color: '#0369A1' }}
           title="Open Customer Android App in interactive phone preview"
         >
           <Smartphone size={15} color="#0077B6" />
@@ -65,7 +65,7 @@ export default function Topbar({ title, onRefresh, lastPacket, isConnected, onOp
         <button 
           onClick={onRefresh} 
           className="btn-secondary"
-          style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px' }}
+          style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.875rem' }}
           title="Manual Reload"
         >
           <RefreshCw size={14} />

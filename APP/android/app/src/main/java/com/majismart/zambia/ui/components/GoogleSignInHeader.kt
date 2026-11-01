@@ -47,6 +47,7 @@ fun GoogleSignInHeader(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(brush = Brush.verticalGradient(listOf(MajiNavy, MajiOceanBlue, MajiBlue)))
+                .statusBarsPadding()
                 .padding(20.dp)
         ) {
             Column {
