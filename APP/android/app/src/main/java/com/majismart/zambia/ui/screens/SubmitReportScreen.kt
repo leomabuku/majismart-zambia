@@ -1,6 +1,7 @@
 package com.majismart.zambia.ui.screens
 
 import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.util.Base64
@@ -134,11 +135,19 @@ fun SubmitReportScreen(
         }
     }
 
+    fun launchCamera() {
+        try {
+            cameraLauncher.launch(null)
+        } catch (_: ActivityNotFoundException) {
+            errorMessage = "No camera app is available. You can submit this report without a photo."
+        }
+    }
+
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
-            cameraLauncher.launch(null)
+            launchCamera()
         } else {
             errorMessage = "Camera permission denied. A photo helps the crew find the leak."
         }
@@ -147,7 +156,7 @@ fun SubmitReportScreen(
     fun openCamera() {
         val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED
-        if (granted) cameraLauncher.launch(null) else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        if (granted) launchCamera() else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
     }
 
     /** Downscale + JPEG-compress so a phone photo stays well under the 2 MB API cap. */
