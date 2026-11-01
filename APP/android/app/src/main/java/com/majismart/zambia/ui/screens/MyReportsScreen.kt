@@ -60,7 +60,7 @@ fun MyReportsScreen(
                         )
                         Text(
                             text = "Track the status of reports you submitted",
-                            fontSize = 12.sp,
+                            fontSize = 14.sp,
                             color = Color.Gray
                         )
                     }
@@ -79,7 +79,7 @@ fun MyReportsScreen(
                     FilterChip(
                         selected = selectedFilter == filterKey,
                         onClick = { selectedFilter = filterKey },
-                        label = { Text(filterLabel, fontSize = 12.sp, fontWeight = FontWeight.Bold) },
+                        label = { Text(filterLabel, fontSize = 14.sp, fontWeight = FontWeight.Bold) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = MajiOceanBlue,
                             selectedLabelColor = Color.White
@@ -106,7 +106,7 @@ fun MyReportsScreen(
                         Icon(Icons.Default.CheckCircleOutline, contentDescription = null, tint = MajiEmerald, modifier = Modifier.size(48.dp))
                         Spacer(modifier = Modifier.height(10.dp))
                         Text("No reports found", fontWeight = FontWeight.Bold, color = MajiNavy)
-                        Text("Submitted community issues will appear here with live tracking updates.", fontSize = 12.sp, color = Color.Gray)
+                        Text("Submitted community issues will appear here with live tracking updates.", fontSize = 14.sp, color = Color.Gray)
                     }
                 }
             }
@@ -141,13 +141,13 @@ fun ReportItemCard(report: CommunityReport) {
                     Text(
                         text = report.title,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
+                        fontSize = 16.sp,
                         color = MajiNavy
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Default.Place, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text(report.locationName, fontSize = 12.sp, color = Color.Gray)
+                        Text(report.locationName, fontSize = 14.sp, color = Color.Gray)
                     }
                 }
 
@@ -159,14 +159,14 @@ fun ReportItemCard(report: CommunityReport) {
                         text = report.status,
                         color = statusColor,
                         fontWeight = FontWeight.ExtraBold,
-                        fontSize = 11.sp,
+                        fontSize = 14.sp,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
-            Text(report.description, fontSize = 13.sp, color = MajiTextPrimary)
+            Text(report.description, fontSize = 14.sp, color = MajiTextPrimary)
 
             Spacer(modifier = Modifier.height(14.dp))
 
@@ -199,7 +199,7 @@ fun ReportItemCard(report: CommunityReport) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "Dispatch Unit Note: $notes",
-                            fontSize = 12.sp,
+                            fontSize = 14.sp,
                             fontWeight = FontWeight.Medium,
                             color = MajiNavy
                         )
@@ -221,9 +221,10 @@ fun TimelineStep(stepName: String, isActive: Boolean) {
         Spacer(modifier = Modifier.width(4.dp))
         Text(
             text = stepName,
-            fontSize = 10.sp,
+            fontSize = 14.sp,
             fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
             color = if (isActive) MajiNavy else Color.Gray
         )
     }
 }
+

@@ -61,7 +61,7 @@ object NotificationHelper {
         // Send Android System Notification
         try {
             val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_popup_reminder)
+                .setSmallIcon(com.majismart.zambia.R.drawable.ic_notification)
                 .setContentTitle(title)
                 .setContentText(message)
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -92,3 +92,4 @@ object NotificationHelper {
 
     fun getUnreadCount(): Int = notifications.count { !it.isRead }
 }
+

@@ -211,7 +211,7 @@ fun SubmitReportScreen(
                     )
                     Text(
                         text = "Submit your report for review; a crew assignment is not guaranteed",
-                        fontSize = 12.sp,
+                        fontSize = 14.sp,
                         color = Color.Gray
                     )
                 }
@@ -219,7 +219,7 @@ fun SubmitReportScreen(
         }
 
         // Category Selection Chips
-        Text("Incident Category *", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MajiNavy)
+        Text("Incident Category *", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MajiNavy)
         categories.chunked(2).forEach { rowCategories ->
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -230,7 +230,7 @@ fun SubmitReportScreen(
                     selected = category == catId,
                     onClick = { category = catId },
                     leadingIcon = { Icon(catIcon, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                    label = { Text(catLabel, fontSize = 12.sp) },
+                    label = { Text(catLabel, fontSize = 14.sp) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MajiOceanBlue,
                         selectedLabelColor = Color.White
@@ -282,10 +282,10 @@ fun SubmitReportScreen(
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Share my current location", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MajiNavy)
+                        Text("Share my current location", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MajiNavy)
                         Text(
                             "Shares an approximate GPS pin and accuracy with the report.",
-                            fontSize = 11.sp,
+                            fontSize = 14.sp,
                             color = Color(0xFF64748B)
                         )
                     }
@@ -314,14 +314,14 @@ fun SubmitReportScreen(
                             Icon(Icons.Default.MyLocation, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                         }
-                        Text(if (locating) "Locating…" else "Use my location", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text(if (locating) "Locating…" else "Use my location", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
 
                     gpsAccuracy?.let { acc ->
                         Surface(color = MajiGreenLight, shape = RoundedCornerShape(999.dp)) {
                             Text(
                                 text = String.format(Locale.US, "±%.0f m accuracy", acc),
-                                fontSize = 11.sp,
+                                fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF047857),
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
@@ -334,7 +334,7 @@ fun SubmitReportScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = String.format(Locale.US, "Pin: %.5f, %.5f (%s)", pin.latitude, pin.longitude, locationSource),
-                        fontSize = 11.sp,
+                        fontSize = 14.sp,
                         color = Color(0xFF64748B)
                     )
                 }
@@ -357,10 +357,10 @@ fun SubmitReportScreen(
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Photo of the leak", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MajiNavy)
+                        Text("Photo of the leak", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MajiNavy)
                         Text(
                             "A picture is attached to the report with its GPS pin, so the crew knows exactly what to expect.",
-                            fontSize = 11.sp,
+                            fontSize = 14.sp,
                             color = Color(0xFF64748B)
                         )
                     }
@@ -384,12 +384,12 @@ fun SubmitReportScreen(
                         OutlinedButton(onClick = { openCamera() }, shape = RoundedCornerShape(10.dp)) {
                             Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Retake", fontSize = 12.sp)
+                            Text("Retake", fontSize = 14.sp)
                         }
                         TextButton(onClick = { photoBitmap = null }) {
                             Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp), tint = MajiRed)
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Remove", fontSize = 12.sp, color = MajiRed)
+                            Text("Remove", fontSize = 14.sp, color = MajiRed)
                         }
                     }
                 } else {
@@ -400,14 +400,14 @@ fun SubmitReportScreen(
                     ) {
                         Icon(Icons.Default.PhotoCamera, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Take photo of leak", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("Take photo of leak", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
         }
 
         // Urgency Meter
-        Text("Urgency Level", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MajiNavy)
+        Text("Urgency Level", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MajiNavy)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -419,7 +419,7 @@ fun SubmitReportScreen(
                 ElevatedFilterChip(
                     selected = isSelected,
                     onClick = { urgency = urgKey },
-                    label = { Text(urgLabel, fontSize = 12.sp, fontWeight = FontWeight.Bold) },
+                    label = { Text(urgLabel, fontSize = 14.sp, fontWeight = FontWeight.Bold) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = chipColor,
                         selectedLabelColor = Color.White
@@ -449,7 +449,7 @@ fun SubmitReportScreen(
                 shape = RoundedCornerShape(8.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(text = it, color = MajiRed, fontSize = 12.sp, modifier = Modifier.padding(10.dp))
+                Text(text = it, color = MajiRed, fontSize = 14.sp, modifier = Modifier.padding(10.dp))
             }
         }
 
@@ -505,9 +505,10 @@ fun SubmitReportScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Submit Incident Report", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("Submit Incident Report", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
     }
 }
+

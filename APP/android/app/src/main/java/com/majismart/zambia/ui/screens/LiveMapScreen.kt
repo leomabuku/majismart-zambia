@@ -69,12 +69,12 @@ fun LiveMapScreen(
                             Text(
                                 text = "Lusaka Water Grid Map",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp,
+                                fontSize = 16.sp,
                                 color = MajiNavy
                             )
                             Text(
                                 text = "Only records with stored coordinates are shown",
-                                fontSize = 12.sp,
+                                fontSize = 14.sp,
                                 color = Color.Gray
                             )
                         }
@@ -88,7 +88,7 @@ fun LiveMapScreen(
                     ) {
                         Icon(Icons.Default.AddLocationAlt, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Pin Issue", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("Pin Issue", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
                 }
 
@@ -104,20 +104,21 @@ fun LiveMapScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(color = MajiEmerald, shape = CircleShape, modifier = Modifier.size(10.dp)) {}
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Normal Level", fontSize = 11.sp, color = Color.DarkGray)
+                        Text("Normal Level", fontSize = 14.sp, color = Color.DarkGray)
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(color = MajiAmber, shape = CircleShape, modifier = Modifier.size(10.dp)) {}
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Low Level", fontSize = 11.sp, color = Color.DarkGray)
+                        Text("Low Level", fontSize = 14.sp, color = Color.DarkGray)
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(color = MajiRed, shape = CircleShape, modifier = Modifier.size(10.dp)) {}
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Critical / Burst", fontSize = 11.sp, color = Color.DarkGray)
+                        Text("Critical / Burst", fontSize = 14.sp, color = Color.DarkGray)
                     }
                 }
             }
         }
     }
 }
+

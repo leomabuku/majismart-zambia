@@ -74,14 +74,14 @@ fun NotificationsScreen(
                             )
                             Text(
                                 text = "${notifications.count { !it.isRead }} unread alerts",
-                                fontSize = 12.sp,
+                                fontSize = 14.sp,
                                 color = Color.Gray
                             )
                         }
                     }
 
                     TextButton(onClick = onMarkAllRead) {
-                        Text("Mark Read", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MajiOceanBlue)
+                        Text("Mark Read", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MajiOceanBlue)
                     }
                 }
             }
@@ -104,7 +104,7 @@ fun NotificationsScreen(
             ) {
                 Icon(Icons.Default.AddAlert, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Simulate Live Telemetry Alert Notification", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text("Simulate Live Telemetry Alert Notification", fontSize = 14.sp, fontWeight = FontWeight.Bold)
             }
         }
 
@@ -125,7 +125,7 @@ fun NotificationsScreen(
                         Icon(Icons.Default.CheckCircle, contentDescription = null, tint = MajiEmerald, modifier = Modifier.size(48.dp))
                         Spacer(modifier = Modifier.height(10.dp))
                         Text("All caught up!", fontWeight = FontWeight.Bold, color = MajiNavy)
-                        Text("No water alerts or notifications at this time.", fontSize = 12.sp, color = Color.Gray)
+                        Text("No water alerts or notifications at this time.", fontSize = 14.sp, color = Color.Gray)
                     }
                 }
             }
@@ -193,7 +193,7 @@ fun NotificationCardItem(
                     Text(
                         text = notif.title,
                         fontWeight = if (notif.isRead) FontWeight.SemiBold else FontWeight.ExtraBold,
-                        fontSize = 14.sp,
+                        fontSize = 16.sp,
                         color = MajiNavy,
                         modifier = Modifier.weight(1f)
                     )
@@ -210,14 +210,14 @@ fun NotificationCardItem(
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = notif.message,
-                    fontSize = 12.sp,
+                    fontSize = 14.sp,
                     color = MajiTextPrimary
                 )
 
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = notif.timestamp,
-                    fontSize = 10.sp,
+                    fontSize = 14.sp,
                     color = Color.Gray,
                     fontWeight = FontWeight.Medium
                 )
@@ -225,3 +225,4 @@ fun NotificationCardItem(
         }
     }
 }
+

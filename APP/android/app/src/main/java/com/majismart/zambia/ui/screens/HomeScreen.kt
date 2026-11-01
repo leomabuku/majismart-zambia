@@ -16,7 +16,7 @@ fun HomeScreen(tanks: List<Tank>, isLoading: Boolean, connectionError: String?, 
         item {
             Text("Your water", fontSize = 24.sp)
             Text("The last known level may be stale if the device is offline or has a sensor error.")
-            Text("Refreshes about every 30 seconds while this screen is open. Last successful tank sync: ${lastSyncedAt ?: "Never"}.")
+            Text("Refreshes every second while this screen is open. Last successful tank sync: ${lastSyncedAt ?: "Never"}.")
             if (connectionError != null) Text(connectionError, color = MaterialTheme.colorScheme.error)
             Row { TextButton(onClick = onRefresh) { Text("Refresh") }; TextButton(onClick = onNavigateToReport) { Text("Report a problem") } }
             if (isLoading) CircularProgressIndicator()
@@ -39,3 +39,4 @@ fun HomeScreen(tanks: List<Tank>, isLoading: Boolean, connectionError: String?, 
         }
     }
 }
+

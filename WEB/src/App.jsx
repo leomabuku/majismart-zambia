@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { api } from './services/api';
 import { createRefreshQueue } from './services/refreshQueue';
 import { latestTankPacket, mergeTankReadings, newestPacket } from './services/telemetryView';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Sidebar from './components/Sidebar';
+import BrandMark from './components/BrandMark';
 import Topbar from './components/Topbar';
 import Dashboard from './pages/Dashboard';
 import TankAnalytics from './pages/TankAnalytics';
@@ -21,6 +22,16 @@ import LoginPage from './pages/LoginPage';
 function MainApp() {
   const { isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [navOpen, setNavOpen] = useState(false);
+  const [isCompact, setIsCompact] = useState(() => window.matchMedia('(max-width: 1023px)').matches);
+  const closeNavigation = useCallback(() => setNavOpen(false), []);
+  const navigate = useCallback(tab => { setActiveTab(tab); setNavOpen(false); }, []);
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 1023px)');
+    const update = () => { setIsCompact(query.matches); if (!query.matches) setNavOpen(false); };
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
   const [showMobileApp, setShowMobileApp] = useState(false);
   const [summary, setSummary] = useState(null);
   const [stations, setStations] = useState([]);
@@ -113,17 +124,23 @@ function MainApp() {
 
   return (
     <div className={`app-container ${activeTab === 'report-analytics' ? 'analysis-view' : ''}`}>
-      <Sidebar 
-        activeTab={activeTab} 
-        setActiveTab={setActiveTab} 
+      <Sidebar
+        activeTab={activeTab}
+        setActiveTab={navigate}
+        mobile={isCompact}
+        open={navOpen}
+        onClose={closeNavigation}
         alertCount={activeAlertsCount}
         reportCount={openReportsCount}
         isLive={isConnected}
       />
 
-      <div className="main-wrapper">
-        <Topbar 
-          title={getPageTitle()} 
+      {isCompact && navOpen && <button className="navigation-backdrop" aria-label="Dismiss navigation" onClick={closeNavigation} />}
+      <div className="main-wrapper" inert={isCompact && navOpen ? true : undefined}>
+        <Topbar
+          title={getPageTitle()}
+          menuOpen={navOpen}
+          onMenuClick={() => setNavOpen(v => !v)}
           onRefresh={() => refreshQueue.current?.request()}
           lastPacket={lastTelemetry}
           isConnected={isConnected}
@@ -131,7 +148,7 @@ function MainApp() {
         />
 
         {showMobileApp && (
-          <MobileAppSimulator 
+          <MobileAppSimulator
             tanks={tanks}
             reports={reports}
             onReload={reloadData}
@@ -156,7 +173,7 @@ function MainApp() {
         <main className="content-area">
           {activeTab === 'dashboard' && !isAdmin && <CustomerHome onReport={() => setActiveTab('reports')} />}
           {activeTab === 'dashboard' && isAdmin && (
-            <Dashboard 
+            <Dashboard
               summary={summary}
               tanks={tanks}
               alerts={alerts}
@@ -167,7 +184,7 @@ function MainApp() {
           )}
 
           {activeTab === 'analytics' && isAdmin && (
-            <TankAnalytics 
+            <TankAnalytics
               refreshVersion={telemetryRevision}
               selectedTankId={selectedTankId}
               onBack={() => setActiveTab('dashboard')}
@@ -180,14 +197,14 @@ function MainApp() {
           {activeTab === 'report-analytics' && isAdmin && <ReportAnalytics stations={stations} />}
 
           {activeTab === 'reports' && (
-            <CommunityReports 
+            <CommunityReports
               reports={reports}
               onReload={reloadData}
             />
           )}
 
           {activeTab === 'map' && (
-            <IncidentMap 
+            <IncidentMap
               stations={stations}
               tanks={tanks}
               reports={reports}
@@ -195,14 +212,14 @@ function MainApp() {
           )}
 
           {activeTab === 'alerts' && (
-            <AlertsCenter 
+            <AlertsCenter
               alerts={alerts}
               onReload={reloadData}
             />
           )}
 
           {activeTab === 'simulator' && isAdmin && (
-            <HardwareSimulator 
+            <HardwareSimulator
               onReadingSent={(data) => {
                 setLastTelemetry(data);
                 reloadData();
@@ -223,9 +240,7 @@ function BootSplash() {
   return (
     <div className="boot-splash">
       <div className="boot-logo">
-        <svg width="34" height="34" viewBox="0 0 24 24" fill="#03045E" aria-hidden="true">
-          <path d="M12 2.5c3.6 4.4 6.5 8 6.5 11.4a6.5 6.5 0 1 1-13 0C5.5 10.5 8.4 6.9 12 2.5z" />
-        </svg>
+        <BrandMark size={48} />
       </div>
       <div className="boot-text">SmartWater Zambia</div>
       <div className="boot-sub">Restoring your session…</div>

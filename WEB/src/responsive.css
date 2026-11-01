@@ -1,0 +1,108 @@
+/* Readable defaults and device-wide reflow, loaded after legacy page styles. */
+html { font-size: 100%; -webkit-text-size-adjust: 100%; }
+body { font-size: 1rem; line-height: 1.6; }
+button, input, select, textarea { font-size: 1rem; }
+button, input, select { min-height: 44px; }
+button { min-width: 44px; }
+input, select, textarea, fieldset { min-width: 0; max-width: 100%; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 3px solid #0E7490; outline-offset: 3px; }
+.sidebar button:focus-visible { outline-color: #67E8F9; }
+img { max-width: 100%; }
+svg { flex-shrink: 0; }
+.brand-mark { display: block; flex-shrink: 0; height: auto; }
+.content-area { width: 100%; max-width: 1800px; margin-inline: auto; padding: clamp(16px, 2.4vw, 36px); }
+.content-area > *, .content-area section, .content-area article { min-width: 0; }
+.content-area p, .content-area td, .content-area th { overflow-wrap: anywhere; }
+.content-area > div > div[style*="justify-content: space-between"] { flex-wrap: wrap; gap: 16px; }
+.tank-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); }
+.tank-card, .stat-card { min-width: 0; }
+.table-container { overflow-x: auto; max-width: 100%; }
+.data-table { min-width: 620px; font-size: 1rem; }
+.data-table th { font-size: .875rem; }
+.data-table th, .data-table td { padding: 14px 16px; }
+.insights table { font-size: .9375rem; }
+.insights thead th { font-size: .875rem; }
+.insight-heading h1 { font-size: clamp(1.6rem, 2.5vw, 2rem); }
+.insight-heading p, .insight-note, .insight-source-note, .insight-methodology p, .insight-read-more > p { font-size: .9375rem; }
+.insight-tabs button, .insight-toolbar select, .insight-filters input, .insight-filters select { font-size: 1rem; }
+.insight-toolbar label, .insight-period, .insight-update, .insight-kpis span, .insight-kpis small, .insight-mini-row { font-size: .875rem; }
+.insight-mini-track { height: 7px; }
+.insight-compact .insight-chart { height: 280px; }
+.insight-recommendations p, .insight-compact .insight-recommendations p { font-size: 1rem; }
+.insight-recommendations article > span { font-size: .875rem; }
+.insight-recommendations h3 { font-size: 1.0625rem; }
+.insight-link, .insights summary { font-size: .9375rem; }
+.insight-tabs { scroll-padding-inline: 12px; }
+.insight-dialog { font-size: 1rem; }
+.insight-dialog p, .insight-dialog li { font-size: 1rem; }
+.insight-pagination { flex-wrap: wrap; font-size: .9375rem; }
+.insight-kpis strong, .stat-value, .metric-big { font-variant-numeric: tabular-nums; }
+.badge-normal { color: #065F46; }
+.badge-low { color: #92400E; }
+.badge-critical { color: #991B1B; }
+.badge-offline { color: #475569; }
+.reading-received { font-size: .875rem; }
+.navigation-toggle, .navigation-close, .navigation-backdrop { display: none; }
+.topbar { min-height: 80px; height: auto; gap: 16px; padding: 14px clamp(16px, 2.4vw, 36px); }
+.topbar-left, .topbar-right { flex-wrap: wrap; min-width: 0; }
+.topbar-title { font-size: clamp(1.1rem, 1.8vw, 1.5rem); }
+.telemetry-ticker, .ticker-left { flex-wrap: wrap; min-width: 0; }
+.telemetry-ticker { gap: 10px; }
+.modal-content { max-width: min(680px, calc(100vw - 32px)); max-height: 90dvh; padding: 24px; }
+.auth-form, .auth-brand, .auth-panel { min-width: 0; }
+.auth-field input { font-size: 1rem; }
+
+@media (max-width: 1199px) {
+  .insight-topics { grid-template-columns: minmax(0, 1fr); }
+  .topbar { flex-wrap: wrap; }
+}
+@media (max-width: 1023px) {
+  .app-container, .app-container.analysis-view { display: flex; flex-direction: row; }
+  .app-container .sidebar {
+    position: fixed; inset: 0 auto 0 0; width: min(320px, calc(100vw - 40px));
+    height: 100dvh; max-height: 100dvh; z-index: 200; overflow-y: auto;
+    transform: translateX(-110%); transition: transform .2s ease;
+  }
+  .app-container .sidebar.is-open { transform: translateX(0); }
+  .app-container .sidebar .nav-menu { display: flex; flex-direction: column; overflow-x: visible; padding: 12px; }
+  .app-container .sidebar .nav-item { flex: 0 0 auto; width: 100%; white-space: normal; font-size: 1rem; }
+  .app-container .sidebar .brand-section { padding: 22px 18px 12px; }
+  .app-container .sidebar .sidebar-footer { padding: 18px; margin-top: auto; }
+  .navigation-close { display: block; align-self: flex-end; margin: 0 16px 8px; color: white; font-size: 1rem; padding: 6px 10px; }
+  .navigation-toggle { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; border: 1px solid #CBD5E1; border-radius: 8px; color: #03045E; }
+  .navigation-backdrop { display: block; position: fixed; inset: 0; width: 100%; height: 100dvh; background: #0F172A66; z-index: 190; border: 0; }
+  .main-wrapper { width: 100%; }
+  .app-container .topbar { position: relative; height: auto; padding: 12px 16px; flex-wrap: wrap; gap: 12px; }
+  .app-container .content-area { padding: 16px; }
+  .app-container .topbar-left, .app-container .topbar-right { flex-wrap: wrap; gap: 10px; }
+  .content-area [style*="grid-template-columns"] { grid-template-columns: minmax(0, 1fr) !important; }
+}
+@media (max-width: 767px) {
+  .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .stat-card { padding: 16px; }
+  .stat-label { font-size: .875rem; }
+  .insight-compact .insight-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .insight-overview-charts, .insight-grid, .insight-recommendations { grid-template-columns: minmax(0, 1fr); }
+  .insight-heading, .insight-section-heading, .insight-actions, .insight-takeaway { flex-wrap: wrap; }
+  .insight-toolbar { align-items: flex-start; }
+  .insight-toolbar label { width: 100%; flex-wrap: wrap; }
+  .insight-update { margin-left: 0; }
+  .insight-panel { padding: 16px; }
+  .insight-filters label { flex-basis: 100%; }
+  .content-area > div > div[style*="display: flex"] { flex-wrap: wrap; gap: 12px; }
+  .content-area form [style*="display: flex"] { flex-wrap: wrap; }
+  .insights table { min-width: 520px; }
+  .map-container { height: clamp(300px, 55dvh, 520px); }
+  .modal-overlay { padding: 12px; }
+  .modal-content { padding: 18px; width: 100%; }
+  .auth-brand-copy h1 { font-size: 1.8rem; }
+  .topbar-right > div { max-width: 100%; }
+}
+@media (max-width: 359px) {
+  .insight-compact .insight-kpis { grid-template-columns: minmax(0, 1fr); }
+  .topbar-right { width: 100%; }
+  .content-area { padding: 12px !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}

@@ -30,7 +30,7 @@ export default function Dashboard({ summary, tanks, alerts, reports, onSelectTan
             <span>•</span>
             <span>Level: <strong>{lastTelemetry.water_level_percent}%</strong></span>
           </div>
-          <span style={{ fontSize: '11px', color: '#94A3B8' }}>
+          <span style={{ fontSize: '14px', color: '#64748B' }}>
             {new Date(lastTelemetry.recorded_at).toLocaleTimeString()}
           </span>
         </div>
@@ -43,7 +43,7 @@ export default function Dashboard({ summary, tanks, alerts, reports, onSelectTan
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>
           <h2 style={{ fontSize: '20px', color: '#03045E' }}>Water Storage Tanks & Reservoirs</h2>
-          <p style={{ fontSize: '13px', color: '#64748B' }}>Live level measurements transmitted via ESP32 ultrasonic telemetry</p>
+          <p style={{ fontSize: '14px', color: '#64748B' }}>Live level measurements transmitted via ESP32 ultrasonic telemetry</p>
         </div>
 
         {/* Filter Tabs */}
@@ -55,7 +55,7 @@ export default function Dashboard({ summary, tanks, alerts, reports, onSelectTan
               style={{
                 padding: '6px 14px',
                 borderRadius: '6px',
-                fontSize: '12px',
+                fontSize: '14px',
                 fontWeight: 600,
                 background: filter === statusKey ? '#FFFFFF' : 'transparent',
                 color: filter === statusKey ? '#03045E' : '#475569',
@@ -98,18 +98,18 @@ export default function Dashboard({ summary, tanks, alerts, reports, onSelectTan
                 background: alt.severity === 'CRITICAL' ? '#FEF2F2' : '#FFFBEB',
                 border: `1px solid ${alt.severity === 'CRITICAL' ? '#FCA5A5' : '#FDE68A'}`,
                 borderRadius: '8px',
-                fontSize: '13px'
+                fontSize: '14px'
               }}>
                 <div style={{ fontWeight: 700, color: alt.severity === 'CRITICAL' ? '#991B1B' : '#92400E' }}>
                   {alt.title}
                 </div>
-                <div style={{ color: '#475569', fontSize: '12px', marginTop: '2px' }}>
+                <div style={{ color: '#475569', fontSize: '14px', marginTop: '2px' }}>
                   {alt.message}
                 </div>
               </div>
             ))}
             {(!alerts || alerts.filter(a => a.status === 'ACTIVE').length === 0) && (
-              <div style={{ textAlign: 'center', padding: '20px', color: '#94A3B8', fontSize: '13px' }}>
+              <div style={{ textAlign: 'center', padding: '20px', color: '#64748B', fontSize: '14px' }}>
                 All tanks operating within nominal parameters. No active alerts.
               </div>
             )}
@@ -132,19 +132,19 @@ export default function Dashboard({ summary, tanks, alerts, reports, onSelectTan
                 background: '#F8FAFC',
                 border: '1px solid #E2E8F0',
                 borderRadius: '8px',
-                fontSize: '13px'
+                fontSize: '14px'
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ fontWeight: 600, color: '#0F172A' }}>{rep.title}</span>
                   <span className="badge" style={{
-                    fontSize: '10px',
+                    fontSize: '14px',
                     background: rep.status === 'RESOLVED' ? '#ECFDF5' : rep.status === 'IN_PROGRESS' ? '#FFFBEB' : '#EFF6FF',
                     color: rep.status === 'RESOLVED' ? '#059669' : rep.status === 'IN_PROGRESS' ? '#D97706' : '#2563EB'
                   }}>
                     {rep.status}
                   </span>
                 </div>
-                <div style={{ color: '#64748B', fontSize: '12px', marginTop: '4px' }}>
+                <div style={{ color: '#64748B', fontSize: '14px', marginTop: '4px' }}>
                   {rep.location_name} • Reported by {rep.reporter_name || 'Resident'}
                 </div>
               </div>

@@ -152,7 +152,7 @@ fun InteractiveMapView(
                             searchQuery = it
                             isSearchFocused = true
                         },
-                        placeholder = { Text("Search location in Lusaka...", fontSize = 14.sp) },
+                        placeholder = { Text("Search location in Lusaka...", fontSize = 16.sp) },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = Color.Transparent,
                             unfocusedBorderColor = Color.Transparent
@@ -222,12 +222,12 @@ fun InteractiveMapView(
                                     Text(
                                         text = preset.name,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp,
+                                        fontSize = 16.sp,
                                         color = MajiNavy
                                     )
                                     Text(
                                         text = preset.description,
-                                        fontSize = 12.sp,
+                                        fontSize = 14.sp,
                                         color = Color.Gray
                                     )
                                 }
@@ -276,13 +276,13 @@ fun InteractiveMapView(
                         Column {
                             Text(
                                 text = "Selected Location",
-                                fontSize = 11.sp,
+                                fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.Gray
                             )
                             Text(
                                 text = pinnedAddressName,
-                                fontSize = 13.sp,
+                                fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MajiNavy
                             )
@@ -303,3 +303,4 @@ fun InteractiveMapView(
         }
     }
 }
+

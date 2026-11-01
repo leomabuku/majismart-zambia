@@ -118,12 +118,12 @@ export default function IncidentMap({ stations, tanks, reports }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>
           <h2 style={{ fontSize: '22px', color: '#03045E' }}>Geographic Infrastructure & Incidents</h2>
-          <p style={{ fontSize: '13px', color: '#64748B' }}>Spatial distribution of storage reservoirs, water towers, and citizen alerts</p>
+          <p style={{ fontSize: '14px', color: '#64748B' }}>Spatial distribution of storage reservoirs, water towers, and citizen alerts</p>
         </div>
 
         {/* Map Layers Filter */}
         <div style={{ display: 'flex', gap: '12px', background: 'white', padding: '6px 14px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', cursor: 'pointer' }}>
             <input 
               type="checkbox" 
               checked={showStations} 
@@ -134,7 +134,7 @@ export default function IncidentMap({ stations, tanks, reports }) {
 
           <span style={{ color: '#CBD5E1' }}>|</span>
 
-          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', cursor: 'pointer' }}>
             <input 
               type="checkbox" 
               checked={showReports} 
@@ -149,7 +149,7 @@ export default function IncidentMap({ stations, tanks, reports }) {
       <div className="map-container" ref={mapRef} />
 
       {/* Map Legend */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', marginTop: '16px', background: 'white', padding: '12px 20px', borderRadius: '10px', border: '1px solid #E2E8F0', fontSize: '12px', color: '#475569' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', marginTop: '16px', background: 'white', padding: '12px 20px', borderRadius: '10px', border: '1px solid #E2E8F0', fontSize: '14px', color: '#475569' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ width: '14px', height: '14px', borderRadius: '50%', background: '#0284C7', display: 'inline-block' }} />
           <span>Tank normal</span>
@@ -170,3 +170,4 @@ export default function IncidentMap({ stations, tanks, reports }) {
     </div>
   );
 }
+
