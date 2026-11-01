@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS sensor_fault_events (
   fault_code TEXT NOT NULL CHECK (fault_code IN ('TIMEOUT', 'INVALID_SAMPLE')),
   measured_at TEXT,
   provenance TEXT NOT NULL CHECK (provenance IN ('OPERATIONAL', 'SIMULATED', 'TEST', 'UNKNOWN')),
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_sensor_fault_tank_time ON sensor_fault_events(tank_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_sensor_fault_provenance_time ON sensor_fault_events(provenance, created_at);

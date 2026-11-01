@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS tank_calibration_tests (
   manual_depth_cm REAL NOT NULL,
   calculated_depth_cm REAL NOT NULL,
   depth_error_cm REAL NOT NULL,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_calibration_tank ON tank_calibration_tests(tank_id, created_at);
 ALTER TABLE public.tank_calibration_tests ENABLE ROW LEVEL SECURITY;

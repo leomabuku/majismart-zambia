@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS tank_installations (
   warning_threshold REAL NOT NULL DEFAULT 40, hysteresis REAL NOT NULL DEFAULT 2,
   current_condition TEXT, current_volume_l REAL,
   provenance TEXT NOT NULL DEFAULT 'UNKNOWN' CHECK (provenance IN ('OPERATIONAL','SIMULATED','TEST','UNKNOWN')),
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(), updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE TABLE IF NOT EXISTS telemetry_metadata (
   reading_id TEXT PRIMARY KEY REFERENCES water_level_readings(id) ON DELETE CASCADE,
