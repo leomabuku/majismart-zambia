@@ -127,6 +127,17 @@ function postgresPlaceholders(sql) {
     .replace(/\?/g, () => `$${++index}`);
 }
 
+// Serialize SQLite operations so no other request can enter an asynchronous
+// transaction while it is open. PostgreSQL uses a dedicated pooled client.
+let sqliteQueue = Promise.resolve();
+async function withSqliteLock(work) {
+  const previous = sqliteQueue;
+  let release;
+  sqliteQueue = new Promise(resolve => { release = resolve; });
+  await previous;
+  try { return await work(); } finally { release(); }
+}
+
 export const db = {
   prepare(sql) {
     return {
@@ -137,18 +148,27 @@ export const db = {
   },
   async all(sql, ...params) {
     if (pool) return (await pool.query(postgresPlaceholders(sql), params)).rows;
-    return sqlite.prepare(sql).all(...params);
+    return withSqliteLock(() => sqlite.prepare(sql).all(...params));
   },
   async get(sql, ...params) {
     if (pool) return (await pool.query(postgresPlaceholders(sql), params)).rows[0];
-    return sqlite.prepare(sql).get(...params);
+    return withSqliteLock(() => sqlite.prepare(sql).get(...params));
   },
   async run(sql, ...params) {
     if (pool) return pool.query(postgresPlaceholders(sql), params);
-    return sqlite.prepare(sql).run(...params);
+    return withSqliteLock(() => sqlite.prepare(sql).run(...params));
   },
   async transaction(work) {
-    if (!pool) return work(db);
+    if (!pool) return withSqliteLock(async () => {
+      sqlite.exec('BEGIN');
+      const tx = {
+        all: async (sql, ...params) => sqlite.prepare(sql).all(...params),
+        get: async (sql, ...params) => sqlite.prepare(sql).get(...params),
+        run: async (sql, ...params) => sqlite.prepare(sql).run(...params)
+      };
+      try { const result = await work(tx); sqlite.exec('COMMIT'); return result; }
+      catch (err) { sqlite.exec('ROLLBACK'); throw err; }
+    });
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -379,6 +399,15 @@ export async function initDatabase() {
   ensureSqliteProfileColumns();
 
   ensureSqliteReportColumns();
+
+  // Apply idempotent local installation migration to existing SQLite databases.
+  sqlite.exec(fs.readFileSync(path.resolve(__dirname, '../../database/migrations/002_installation.sql'), 'utf8'));
+
+  sqlite.exec(fs.readFileSync(path.resolve(__dirname, '../../database/migrations/003_report_case.sql'), 'utf8'));
+
+  sqlite.exec(fs.readFileSync(path.resolve(__dirname, '../../database/migrations/004_calibration.sql'), 'utf8'));
+  sqlite.exec(fs.readFileSync(path.resolve(__dirname, '../../database/migrations/005_sensor_faults.sql'), 'utf8'));
+  sqlite.exec(fs.readFileSync(path.resolve(__dirname, '../../database/migrations/006_report_details.sql'), 'utf8'));
 
   // Seed default data if profiles table is empty
   seedDefaultData();

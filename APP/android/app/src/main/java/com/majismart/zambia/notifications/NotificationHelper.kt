@@ -30,38 +30,6 @@ object NotificationHelper {
 
     val notifications = mutableStateListOf<AppNotification>()
 
-    init {
-        // Seed initial rich sample notifications
-        notifications.addAll(
-            listOf(
-                AppNotification(
-                    id = "notif_1",
-                    title = "CRITICAL: Chilenje South Tank at 12%",
-                    message = "Telemetry sensor reported water level below critical threshold (12%). Maintenance team alerted.",
-                    timestamp = "10 mins ago",
-                    type = NotificationType.CRITICAL,
-                    isRead = false
-                ),
-                AppNotification(
-                    id = "notif_2",
-                    title = "Dispatch Unit Assigned",
-                    message = "Lusaka Water Maintenance Unit #4 dispatched to inspect burst pipe at Market 4.",
-                    timestamp = "1 hour ago",
-                    type = NotificationType.DISPATCH,
-                    isRead = false
-                ),
-                AppNotification(
-                    id = "notif_3",
-                    title = "Grid Pressure Normalizing",
-                    message = "Central Lusaka grid water telemetry pressure restored to 3.8 Bar across all main risers.",
-                    timestamp = "3 hours ago",
-                    type = NotificationType.INFO,
-                    isRead = true
-                )
-            )
-        )
-    }
-
     fun createNotificationChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val name = CHANNEL_NAME

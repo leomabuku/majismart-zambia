@@ -5,6 +5,9 @@ import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import Dashboard from './pages/Dashboard';
 import TankAnalytics from './pages/TankAnalytics';
+import ReportAnalytics from './pages/ReportAnalytics';
+import TankInstallation from './pages/TankInstallation';
+import CustomerHome from './pages/CustomerHome';
 import CommunityReports from './pages/CommunityReports';
 import IncidentMap from './pages/IncidentMap';
 import AlertsCenter from './pages/AlertsCenter';
@@ -52,14 +55,16 @@ function MainApp() {
   // Lightweight refresh used while the SSE stream is unavailable (3 requests
   // instead of 5, so a sleeping free-tier instance is not hammered).
   const syncLive = async () => {
-    const [sumRes, tkRes, altRes] = await Promise.all([
+    const [sumRes, tkRes, altRes, repRes] = await Promise.all([
       api.get('/dashboard/summary'),
       api.get('/tanks'),
-      api.get('/alerts')
+      api.get('/alerts'),
+      api.get('/reports')
     ]);
     if (sumRes.success) setSummary(sumRes.summary);
     if (tkRes.success) setTanks(tkRes.data);
     if (altRes.success) setAlerts(altRes.data);
+    if (repRes.success) setReports(repRes.data);
     setLastSyncAt(new Date());
   };
 
@@ -76,11 +81,11 @@ function MainApp() {
       setLastSyncAt(new Date());
 
       if (event === 'NEW_READING') {
-        setLastTelemetry(data);
+        syncLive();
       }
 
       if (event === 'TANK_UPDATED') {
-        setTanks(prev => prev.map(t => (t.id === data.id || t.tank_id_code === data.tank_id_code) ? { ...t, ...data } : t));
+        api.get('/tanks').then(res => { if (res.success) setTanks(res.data); });
         // Refresh summary metrics
         api.get('/dashboard/summary').then(res => { if (res.success) setSummary(res.summary); });
       }
@@ -169,7 +174,8 @@ function MainApp() {
         )}
 
         <main className="content-area">
-          {activeTab === 'dashboard' && (
+          {activeTab === 'dashboard' && !isAdmin && <CustomerHome onReport={() => setActiveTab('reports')} />}
+          {activeTab === 'dashboard' && isAdmin && (
             <Dashboard 
               summary={summary}
               tanks={tanks}
@@ -180,13 +186,17 @@ function MainApp() {
             />
           )}
 
-          {activeTab === 'analytics' && (
+          {activeTab === 'analytics' && isAdmin && (
             <TankAnalytics 
               selectedTankId={selectedTankId}
               onBack={() => setActiveTab('dashboard')}
               tanks={tanks}
             />
           )}
+
+          {activeTab === 'installation' && isAdmin && <TankInstallation stations={stations} tanks={tanks} onSaved={reloadData} />}
+
+          {activeTab === 'report-analytics' && isAdmin && <ReportAnalytics stations={stations} />}
 
           {activeTab === 'reports' && (
             <CommunityReports 

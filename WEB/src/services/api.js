@@ -21,9 +21,11 @@ const pageHost = typeof window !== 'undefined' ? window.location.hostname : '';
 const isLocalPage = !pageHost
   || /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])$/.test(pageHost);
 
-const API_BASE = buildBase && (isLocalPage || buildBase.startsWith('http'))
+// A hosted development preview is not localhost in the user's browser.
+// Always use Vite's local proxy in dev unless an explicit API URL was supplied.
+const API_BASE = buildBase && (import.meta.env.DEV || isLocalPage || buildBase.startsWith('http'))
   ? buildBase
-  : (isLocalPage ? '/api' : FALLBACK_API_BASE);
+  : (import.meta.env.DEV || isLocalPage ? '/api' : FALLBACK_API_BASE);
 
 if (typeof console !== 'undefined') {
   console.info('[API] base:', API_BASE, buildBase ? '(from build variable)' : '(built-in fallback)');
@@ -83,8 +85,8 @@ export const api = {
 
   /**
    * Shared request helper. Never throws: callers check `res.success`.
-   * Retries once on network failure, 502/503/504 and 429, which is what a
-   * waking free-tier instance usually returns.
+   * Retries safe GET requests once on network failure, 502/503/504 or 429.
+   * Mutations are not retried: a lost response may follow a successful write.
    */
   async request(endpoint, { method = 'GET', body } = {}) {
     const url = `${API_BASE}${endpoint}`;
@@ -96,7 +98,8 @@ export const api = {
     };
 
     let lastError = null;
-    for (let attempt = 0; attempt < 2; attempt++) {
+    const maxAttempts = method === 'GET' ? 2 : 1;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
       try {
         const res = await fetchWithTimeout(url, options);
         if (res.status === 429 || res.status >= 502) {
@@ -122,7 +125,7 @@ export const api = {
           detail: err.message
         };
       }
-      if (attempt === 0) await sleep(RETRY_DELAY_MS);
+      if (attempt + 1 < maxAttempts) await sleep(RETRY_DELAY_MS);
     }
     console.warn(`[API] ${method} ${endpoint} failed:`, lastError?.error);
     return lastError || { success: false, error: 'Request failed' };
@@ -196,6 +199,7 @@ export const api = {
       eventSource.onopen = () => {
         setStatus('live');
         stopPolling();
+        onMessage('SYNC', null);
       };
 
       REALTIME_EVENTS.forEach((eventType) => {

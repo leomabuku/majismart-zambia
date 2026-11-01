@@ -53,10 +53,10 @@ fun SubmitReportScreen(
 
     var category by remember { mutableStateOf("BURST_PIPE") }
     var title by remember { mutableStateOf("") }
-    var locationName by remember { mutableStateOf("Chilenje South Market") }
-    var selectedLatLng by remember { mutableStateOf<LatLng?>(LatLng(-15.4411, 28.3245)) }
+    var locationName by remember { mutableStateOf("") }
+    var selectedLatLng by remember { mutableStateOf<LatLng?>(null) }
     var description by remember { mutableStateOf("") }
-    var urgency by remember { mutableStateOf("HIGH") }
+    var urgency by remember { mutableStateOf("UNKNOWN") }
     var isSubmitting by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -66,14 +66,17 @@ fun SubmitReportScreen(
     var locationSource by remember { mutableStateOf("MANUAL") }
     var locating by remember { mutableStateOf(false) }
 
-    // These keys must match the API's enum exactly (POST /api/reports rejects
-    // anything else): BURST_PIPE, PIPE_LEAKAGE, WATER_SHORTAGE, TANK_MALFUNCTION,
-    // WATER_QUALITY, OTHER.
     val categories = listOf(
         Triple("BURST_PIPE", "Burst Pipe", Icons.Default.InvertColors),
         Triple("PIPE_LEAKAGE", "Pipe Leak", Icons.Default.WaterDrop),
         Triple("WATER_SHORTAGE", "No Water", Icons.Default.Speed),
-        Triple("WATER_QUALITY", "Water Quality", Icons.Default.Warning)
+        Triple("WATER_QUALITY", "Water Quality", Icons.Default.Warning),
+        Triple("LOW_PRESSURE", "Low Pressure", Icons.Default.Speed),
+        Triple("WATER_INTERRUPTION", "Interruption", Icons.Default.Warning),
+        Triple("DAMAGED_INFRASTRUCTURE", "Damage", Icons.Default.Warning),
+        Triple("TANK_MALFUNCTION", "Tank Fault", Icons.Default.Warning),
+        Triple("MONITORING_FAULT", "Sensor Fault", Icons.Default.Warning),
+        Triple("OTHER", "Other", Icons.Default.Warning)
     )
 
     val locationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
@@ -207,7 +210,7 @@ fun SubmitReportScreen(
                         color = MajiNavy
                     )
                     Text(
-                        text = "Alert municipal repair dispatch teams in real time",
+                        text = "Submit your report for review; a crew assignment is not guaranteed",
                         fontSize = 12.sp,
                         color = Color.Gray
                     )
@@ -217,11 +220,12 @@ fun SubmitReportScreen(
 
         // Category Selection Chips
         Text("Incident Category *", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MajiNavy)
+        categories.chunked(2).forEach { rowCategories ->
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            categories.take(2).forEach { (catId, catLabel, catIcon) ->
+            rowCategories.forEach { (catId, catLabel, catIcon) ->
                 FilterChip(
                     selected = category == catId,
                     onClick = { category = catId },
@@ -235,23 +239,6 @@ fun SubmitReportScreen(
                 )
             }
         }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            categories.drop(2).forEach { (catId, catLabel, catIcon) ->
-                FilterChip(
-                    selected = category == catId,
-                    onClick = { category = catId },
-                    leadingIcon = { Icon(catIcon, contentDescription = null, modifier = Modifier.size(16.dp)) },
-                    label = { Text(catLabel, fontSize = 12.sp) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MajiOceanBlue,
-                        selectedLabelColor = Color.White
-                    ),
-                    modifier = Modifier.weight(1f)
-                )
-            }
         }
 
         // Title Input
@@ -272,9 +259,12 @@ fun SubmitReportScreen(
                 locationName = addressName
                 if (latLng != null) {
                     selectedLatLng = latLng
+                    locationSource = "MANUAL"
+                    gpsAccuracy = null
                 }
             }
         )
+        OutlinedTextField(value = locationName, onValueChange = { locationName = it }, label = { Text("Location / community *") }, modifier = Modifier.fillMaxWidth())
 
         // GPS fix card: pin the leak at the reporter's real position
         Card(
@@ -294,7 +284,7 @@ fun SubmitReportScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Share my current location", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = MajiNavy)
                         Text(
-                            "Captures the exact GPS pin so dispatch crews can navigate straight to the leak.",
+                            "Shares an approximate GPS pin and accuracy with the report.",
                             fontSize = 11.sp,
                             color = Color(0xFF64748B)
                         )
@@ -422,9 +412,9 @@ fun SubmitReportScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            listOf("NORMAL" to "Normal", "HIGH" to "High", "CRITICAL" to "Emergency").forEach { (urgKey, urgLabel) ->
+            listOf("LOW" to "Low", "MEDIUM" to "Medium", "HIGH" to "High").forEach { (urgKey, urgLabel) ->
                 val isSelected = urgency == urgKey
-                val chipColor = if (urgKey == "CRITICAL") MajiRed else if (urgKey == "HIGH") MajiAmber else MajiOceanBlue
+                val chipColor = if (urgKey == "HIGH") MajiRed else if (urgKey == "MEDIUM") MajiAmber else MajiOceanBlue
 
                 ElevatedFilterChip(
                     selected = isSelected,
@@ -475,6 +465,7 @@ fun SubmitReportScreen(
                     try {
                         val req = CreateReportRequest(
                             category = category,
+                            reportedSeverity = urgency,
                             title = title,
                             description = description,
                             locationName = locationName,
@@ -486,34 +477,16 @@ fun SubmitReportScreen(
                             photoMime = if (photoBitmap != null) "image/jpeg" else null
                         )
                         val res = api.submitReport(req)
-                        if (res.isSuccessful) {
-                            Toast.makeText(context, "Report Dispatched Successfully!", Toast.LENGTH_LONG).show()
-                            // Trigger Notification
-                            NotificationHelper.triggerSystemNotification(
-                                context = context,
-                                title = "Incident Reported: $title",
-                                message = "Logged at $locationName. Dispatch unit notified.",
-                                type = NotificationType.DISPATCH
-                            )
+                        if (res.isSuccessful && res.body()?.success == true) {
+                            Toast.makeText(context, "Report submitted. No crew assignment is confirmed yet.", Toast.LENGTH_LONG).show()
                             onReportSubmitted()
                         } else {
-                            // Fallback client simulation if server offline
-                            NotificationHelper.triggerSystemNotification(
-                                context = context,
-                                title = "Incident Dispatched: $title",
-                                message = "Logged at $locationName. Lusaka crew assigned.",
-                                type = NotificationType.DISPATCH
-                            )
-                            onReportSubmitted()
+                            errorMessage = "Report not submitted. Please check your details and try again."
                         }
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
                     } catch (e: Exception) {
-                        NotificationHelper.triggerSystemNotification(
-                            context = context,
-                            title = "Incident Dispatched: $title",
-                            message = "Logged at $locationName. Dispatch unit notified.",
-                            type = NotificationType.DISPATCH
-                        )
-                        onReportSubmitted()
+                        errorMessage = "Submission was not confirmed. Check your reports before retrying to avoid duplicates."
                     } finally {
                         isSubmitting = false
                     }
@@ -532,7 +505,7 @@ fun SubmitReportScreen(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Dispatch Incident Report", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text("Submit Incident Report", fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

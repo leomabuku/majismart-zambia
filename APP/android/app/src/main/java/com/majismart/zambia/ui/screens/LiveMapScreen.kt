@@ -73,7 +73,7 @@ fun LiveMapScreen(
                                 color = MajiNavy
                             )
                             Text(
-                                text = "${tanks.size} Tanks • ${reports.size} Reported Leaks",
+                                text = "Only records with stored coordinates are shown",
                                 fontSize = 12.sp,
                                 color = Color.Gray
                             )

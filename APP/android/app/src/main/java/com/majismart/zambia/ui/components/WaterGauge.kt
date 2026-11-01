@@ -31,9 +31,9 @@ fun WaterGauge(
     tank: Tank,
     modifier: Modifier = Modifier
 ) {
-    val percent = tank.currentWaterPercent.coerceIn(0, 100)
+    val percent = tank.currentWaterPercent.coerceIn(0f, 100f)
     val isCritical = percent <= 15
-    val isLow = percent in 16..25
+    val isLow = percent > 15f && percent <= 25f
     val statusColor = if (isCritical) MajiRed else if (isLow) MajiAmber else MajiEmerald
     val statusBg = if (isCritical) MajiRedLight else if (isLow) MajiAmberLight else MajiGreenLight
 

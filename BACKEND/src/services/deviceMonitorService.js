@@ -40,7 +40,7 @@ export class DeviceMonitorService {
         SELECT d.*, t.name as tank_name, t.id as tank_id
         FROM monitoring_devices d
         LEFT JOIN tanks t ON d.tank_id = t.id
-        WHERE d.status = 'ONLINE' 
+        WHERE d.status IN ('ONLINE', 'ERROR')
         AND (d.last_seen_at IS NULL OR d.last_seen_at < ?)
       `).all(timeoutThreshold);
 

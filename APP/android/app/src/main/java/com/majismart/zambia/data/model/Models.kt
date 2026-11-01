@@ -29,13 +29,18 @@ data class Tank(
     @SerializedName("name") val name: String,
     @SerializedName("station_name") val stationName: String?,
     @SerializedName("current_water_depth_cm") val currentWaterDepthCm: Float,
-    @SerializedName("current_water_percent") val currentWaterPercent: Int,
+    @SerializedName("current_water_percent") val currentWaterPercent: Float,
     @SerializedName("current_status") val currentStatus: String,
     @SerializedName("total_height_cm") val totalHeightCm: Float,
     @SerializedName("capacity_liters") val capacityLiters: Int,
     @SerializedName("device_id_code") val deviceIdCode: String?,
     @SerializedName("device_status") val deviceStatus: String?,
-    @SerializedName("last_reading_at") val lastReadingAt: String?
+    @SerializedName("last_reading_at") val lastReadingAt: String?,
+    @SerializedName("current_condition") val currentCondition: String? = null,
+    @SerializedName("current_volume_l") val currentVolumeL: Float? = null,
+    @SerializedName("installation_status") val installationStatus: String? = null,
+    @SerializedName("latitude") val latitude: Double? = null,
+    @SerializedName("longitude") val longitude: Double? = null
 )
 
 data class CommunityReport(
@@ -46,11 +51,15 @@ data class CommunityReport(
     @SerializedName("location_name") val locationName: String,
     @SerializedName("status") val status: String,
     @SerializedName("admin_notes") val adminNotes: String?,
-    @SerializedName("created_at") val createdAt: String
+    @SerializedName("created_at") val createdAt: String,
+    @SerializedName("reported_category") val reportedCategory: String? = null,
+    @SerializedName("latitude") val latitude: Double? = null,
+    @SerializedName("longitude") val longitude: Double? = null
 )
 
 data class CreateReportRequest(
     @SerializedName("category") val category: String,
+    @SerializedName("reported_severity") val reportedSeverity: String? = null,
     @SerializedName("title") val title: String,
     @SerializedName("description") val description: String,
     @SerializedName("location_name") val locationName: String,

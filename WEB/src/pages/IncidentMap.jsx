@@ -38,54 +38,22 @@ export default function IncidentMap({ stations, tanks, reports }) {
         stations.forEach(station => {
           if (!hasPin(station)) return;
 
-          const primaryTank = station.tanks?.[0] || {};
-          const percent = primaryTank.current_water_percent ?? 70;
-          const status = primaryTank.current_status || 'NORMAL';
-
-          const markerColor = (status === 'CRITICAL' || percent <= 15) ? '#EF4444' : 
-                              (status === 'LOW' || percent <= 25) ? '#F59E0B' : '#0284C7';
-
-          // Custom HTML SVG marker
-          const icon = L.divIcon({
-            className: 'custom-station-pin',
-            html: `
-              <div style="
-                background: ${markerColor};
-                width: 32px;
-                height: 32px;
-                border-radius: 50%;
-                border: 3px solid white;
-                box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: white;
-                font-weight: 800;
-                font-size: 11px;
-                cursor: pointer;
-              ">
-                ${percent}%
-              </div>
-            `,
-            iconSize: [32, 32],
-            iconAnchor: [16, 16]
-          });
-
+          // A station location is not a tank measurement or a tank location.
+          const icon = L.divIcon({className:'custom-station-pin', html:'<div style="background:#64748b;color:white;border:2px solid white;border-radius:50%;width:28px;height:28px;text-align:center;line-height:24px">S</div>', iconSize:[28,28], iconAnchor:[14,14]});
           const marker = L.marker([station.latitude, station.longitude], { icon });
-          marker.bindPopup(`
-            <div style="font-family: sans-serif; font-size: 13px; line-height: 1.4;">
-              <strong style="color: #03045E; font-size: 14px;">${escapeHtml(station.name)}</strong><br>
-              <span style="color: #64748B;">Code: ${escapeHtml(station.code)} • ${escapeHtml(station.community)}</span>
-              <hr style="margin: 6px 0; border: none; border-top: 1px solid #E2E8F0;">
-              <div>Primary Tank: <strong>${primaryTank.tank_id_code || 'TANK_001'}</strong></div>
-              <div>Water Level: <strong style="color: ${markerColor};">${percent}% (${primaryTank.current_water_depth_cm || 0} cm)</strong></div>
-              <div>Status: <strong>${status}</strong></div>
-              <div style="font-size: 11px; color: #94A3B8; margin-top: 4px;">Hardware: ${primaryTank.device_id_code || 'ESP32_001'}</div>
-            </div>
-          `);
+          marker.bindPopup(`<strong>${escapeHtml(station.name)}</strong><br>Station: ${escapeHtml(station.code)}<br>${escapeHtml(station.community)}`);
           marker.addTo(layer);
         });
       }
+
+      // Plot only valid stored coordinates; the location itself is not verified. Never substitute a station pin.
+      if (showStations && tanks) tanks.filter(hasPin).forEach(tank => {
+        const status = tank.device_status === 'OFFLINE' ? 'OFFLINE' : tank.device_status === 'ERROR' || tank.current_status === 'SENSOR_ERROR' ? 'SENSOR_ERROR' : (tank.current_condition || tank.current_status || 'UNKNOWN');
+        const marker = L.circleMarker([Number(tank.latitude), Number(tank.longitude)], {radius: 9, color: status === 'CRITICAL' ? '#dc2626' : status === 'LOW' || status === 'WARNING' ? '#d97706' : status === 'OFFLINE' || status === 'SENSOR_ERROR' ? '#64748b' : '#0284c7'});
+        const level = tank.last_reading_at && Number.isFinite(Number(tank.current_water_percent)) ? `${Number(tank.current_water_percent).toFixed(1)}% (last known)` : 'No reading';
+        marker.bindPopup(`<strong>${escapeHtml(tank.name)}</strong><br>Tank: ${escapeHtml(tank.tank_id_code)}<br>Level: ${escapeHtml(level)}<br>Condition: ${escapeHtml(status)}<br>Last reading: ${escapeHtml(tank.last_reading_at || 'Never')}`);
+        marker.addTo(layer);
+      });
 
       // 2. Add Community Report Incident Markers
       if (showReports && reports) {
@@ -119,8 +87,8 @@ export default function IncidentMap({ stations, tanks, reports }) {
 
           const accuracy = formatAccuracy(rep.location_accuracy_m);
           const photo = typeof rep.image_url === 'string' && rep.image_url
-            ? `<a href="${rep.image_url}" target="_blank" rel="noreferrer" style="display:block;margin-top:8px;">
-                 <img src="${rep.image_url}" alt="Evidence" style="width:100%;max-width:220px;border-radius:8px;border:1px solid #E2E8F0;" />
+            ? `<a href="${escapeHtml(rep.image_url)}" target="_blank" rel="noreferrer" style="display:block;margin-top:8px;">
+                 <img src="${escapeHtml(rep.image_url)}" alt="Evidence" style="width:100%;max-width:220px;border-radius:8px;border:1px solid #E2E8F0;" />
                </a>`
             : '';
 
@@ -143,7 +111,7 @@ export default function IncidentMap({ stations, tanks, reports }) {
         });
       }
     }
-  }, [stations, reports, showStations, showReports]);
+  }, [stations, tanks, reports, showStations, showReports]);
 
   return (
     <div>
@@ -161,7 +129,7 @@ export default function IncidentMap({ stations, tanks, reports }) {
               checked={showStations} 
               onChange={e => setShowStations(e.target.checked)} 
             />
-            <span style={{ fontWeight: 600, color: '#0284C7' }}>Water Tanks ({stations?.length || 0})</span>
+            <span style={{ fontWeight: 600, color: '#0284C7' }}>Stations & Tanks ({stations?.length || 0} / {tanks?.length || 0})</span>
           </label>
 
           <span style={{ color: '#CBD5E1' }}>|</span>
@@ -184,15 +152,15 @@ export default function IncidentMap({ stations, tanks, reports }) {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', marginTop: '16px', background: 'white', padding: '12px 20px', borderRadius: '10px', border: '1px solid #E2E8F0', fontSize: '12px', color: '#475569' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ width: '14px', height: '14px', borderRadius: '50%', background: '#0284C7', display: 'inline-block' }} />
-          <span>Tank Normal (&gt; 25%)</span>
+          <span>Tank normal</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ width: '14px', height: '14px', borderRadius: '50%', background: '#F59E0B', display: 'inline-block' }} />
-          <span>Tank Low (15% - 25%)</span>
+          <span>Tank warning or low</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ width: '14px', height: '14px', borderRadius: '50%', background: '#EF4444', display: 'inline-block' }} />
-          <span>Tank Critical (&le; 15%)</span>
+          <span>Tank critical</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ width: '14px', height: '14px', borderRadius: '4px', background: '#E11D48', display: 'inline-block' }} />
