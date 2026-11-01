@@ -94,7 +94,7 @@ function MainApp() {
   const openReportsCount = reports?.filter(r => r.status === 'SUBMITTED' || r.status === 'IN_PROGRESS').length || 0;
 
   return (
-    <div className="app-container">
+    <div className={`app-container ${activeTab === 'report-analytics' ? 'analysis-view' : ''}`}>
       <Sidebar 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 

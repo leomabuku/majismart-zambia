@@ -1,6 +1,7 @@
 import { db } from '../database/db.js';
 import { realtime } from '../services/realtimeService.js';
 import crypto from 'node:crypto';
+import { OCTOBER_DEMO } from '../services/octoberDemo.js';
 
 // Photo evidence arrives as base64 from the Android camera (or a https URL from
 // the dashboard). Inline data URLs keep the pilot working without provisioning
@@ -57,7 +58,7 @@ export class ReportController {
       const isAdmin = req.user?.role === 'admin';
       let query = `
         SELECT 
-          r.*, d.reported_category, d.observed_at, d.reported_severity, d.ongoing, d.affected_area,
+          r.*, d.provenance, d.reported_category, d.observed_at, d.reported_severity, d.ongoing, d.affected_area,
           s.name as station_name,
           s.code as station_code,
           p.full_name as reporter_name_profile,
@@ -66,7 +67,7 @@ export class ReportController {
         LEFT JOIN report_submission_details d ON d.report_id = r.id
         LEFT JOIN monitoring_stations s ON r.station_id = s.id
         LEFT JOIN profiles p ON r.reporter_id = p.id
-        WHERE 1=1
+        WHERE COALESCE(d.provenance, 'UNKNOWN') NOT IN ('SIMULATED','TEST')
       `;
       const params = [];
 
@@ -128,7 +129,7 @@ export class ReportController {
       const isAdmin = req.user?.role === 'admin';
       const report = await db.prepare(`
         SELECT 
-          r.*, d.reported_category, d.observed_at, d.reported_severity, d.ongoing, d.affected_area,
+          r.*, d.provenance, d.reported_category, d.observed_at, d.reported_severity, d.ongoing, d.affected_area,
           s.name as station_name,
           s.code as station_code,
           p.full_name as reporter_name_profile,
@@ -140,7 +141,7 @@ export class ReportController {
         WHERE r.id = ?
       `).get(id);
 
-      if (!report) {
+      if (!report || (!isAdmin && ['SIMULATED','TEST'].includes(report.provenance))) {
         return res.status(404).json({ success: false, error: 'Report not found' });
       }
 
@@ -255,7 +256,7 @@ export class ReportController {
         INSERT INTO report_status_history (id, report_id, previous_status, new_status, changed_by, notes)
         VALUES (?, ?, NULL, 'SUBMITTED', ?, 'Report submitted via SmartWater')
         `, historyId, reportId, reporterId);
-        return tx.get('SELECT r.*, d.reported_category, d.observed_at, d.reported_severity, d.ongoing, d.affected_area FROM community_reports r LEFT JOIN report_submission_details d ON d.report_id = r.id WHERE r.id = ?', reportId);
+        return tx.get('SELECT r.*, d.provenance, d.reported_category, d.observed_at, d.reported_severity, d.ongoing, d.affected_area FROM community_reports r LEFT JOIN report_submission_details d ON d.report_id = r.id WHERE r.id = ?', reportId);
       });
 
       // Broadcast real-time event to Web Dashboard
@@ -277,6 +278,7 @@ export class ReportController {
    * Lifecycle: SUBMITTED -> ACKNOWLEDGED -> IN_PROGRESS -> RESOLVED -> REJECTED
    */
   static async updateStatus(req, res) {
+    if(req.params.id.startsWith(OCTOBER_DEMO.prefix)) return res.status(409).json({success:false,error:'The synthetic October snapshot is read-only. Use operational reports for live case management.'});
     try {
       const { id } = req.params;
       const { status, admin_notes, rejection_reason } = req.body;
@@ -335,3 +337,4 @@ export class ReportController {
     }
   }
 }
+
