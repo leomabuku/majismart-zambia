@@ -1,7 +1,7 @@
 {
   "name": "majismart-zambia",
   "version": "1.0.0",
-  "description": "MajiSmart Zambia — IoT-Enabled Smart Water Monitoring and Climate Resilience System",
+  "description": "MajiSmart Zambia \u2014 IoT-Enabled Smart Water Monitoring and Climate Resilience System",
   "private": true,
   "scripts": {
     "supabase": "supabase",
@@ -10,6 +10,7 @@
     "backend:test": "npm --prefix BACKEND test",
     "web:dev": "npm --prefix WEB run dev",
     "web:build": "npm --prefix WEB run build",
+    "web:test": "npm --prefix WEB run test",
     "simulate": "node FIRMWARE/simulator/iot_simulator.js"
   },
   "devDependencies": {
