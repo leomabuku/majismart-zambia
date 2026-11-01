@@ -169,7 +169,11 @@ fun MainAppScreen(api: MajiSmartApiService) {
                         NavigationBarItem(
                             selected = selectedTab == index,
                             onClick = { selectedTab = index },
-                            icon = { Icon(destination.second, contentDescription = destination.first) },
+                            icon = {
+                                BadgedBox(badge = {
+                                    if (index == 4 && unreadNotifCount > 0) Badge { Text(unreadNotifCount.toString()) }
+                                }) { Icon(destination.second, contentDescription = destination.first) }
+                            },
                             label = { Text(destination.first, fontSize = 14.sp) },
                             alwaysShowLabel = false
                         )
@@ -185,7 +189,11 @@ fun MainAppScreen(api: MajiSmartApiService) {
                         NavigationRailItem(
                             selected = selectedTab == index,
                             onClick = { selectedTab = index },
-                            icon = { Icon(destination.second, contentDescription = destination.first) },
+                            icon = {
+                                BadgedBox(badge = {
+                                    if (index == 4 && unreadNotifCount > 0) Badge { Text(unreadNotifCount.toString()) }
+                                }) { Icon(destination.second, contentDescription = destination.first) }
+                            },
                             label = { Text(destination.first) }
                         )
                     }

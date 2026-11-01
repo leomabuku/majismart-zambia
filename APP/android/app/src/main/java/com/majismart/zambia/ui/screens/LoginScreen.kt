@@ -228,7 +228,7 @@ fun LoginScreen(api: MajiSmartApiService) {
                         colors = ButtonDefaults.buttonColors(containerColor = MajiBlue),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp)
+                            .heightIn(min = 48.dp)
                     ) {
                         if (busy) {
                             CircularProgressIndicator(
@@ -269,7 +269,7 @@ fun LoginScreen(api: MajiSmartApiService) {
                         shape = RoundedCornerShape(14.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp)
+                            .heightIn(min = 48.dp)
                     ) {
                         Icon(
                             Icons.Default.AccountCircle,

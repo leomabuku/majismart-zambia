@@ -111,3 +111,9 @@ svg { flex-shrink: 0; }
 .insight-kpis small { white-space: normal; overflow-wrap: anywhere; }
 .insight-tabs { gap: 8px; }
 .insight-tabs button { flex: 0 0 auto; }
+
+.mobile-preview-frame > div { min-height: 0; }
+.mobile-preview-frame > div:last-child { gap: 8px; }
+.mobile-preview-frame > div:last-child button { flex: 1 1 0; min-width: 0; gap: 4px; }
+.mobile-preview-frame [style*="justify-content: space-between"] { flex-wrap: wrap; gap: 8px; }
+@media (max-width: 767px) { .data-table { min-width: 840px; } }

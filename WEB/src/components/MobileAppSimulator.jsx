@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import BrandMark from './BrandMark';
 import { api } from '../services/api';
 import { 
   Smartphone, 
@@ -59,6 +60,7 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 2000 }}>
       {/* Smartphone Device Frame */}
       <div 
+        className="mobile-preview-frame"
         onClick={e => e.stopPropagation()} 
         style={{
           width: 'min(380px, calc(100vw - 24px))',
@@ -85,7 +87,8 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
         }}>
           <div style={{ width: '80px', height: '14px', background: '#1E293B', borderRadius: '10px' }} />
           <button 
-            onClick={onClose} 
+            onClick={onClose}
+            aria-label="Close customer app preview"
             style={{ position: 'absolute', right: '14px', top: '4px', color: '#64748B' }}
           >
             <X size={14} />
@@ -101,7 +104,8 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
           justifyContent: 'space-between',
           alignItems: 'center'
         }}>
-          <div>
+          <div style={{ minWidth: 0 }}>
+            <BrandMark size={32} />
             <div style={{ fontSize: '14px', color: '#90E0EF', textTransform: 'uppercase', letterSpacing: '0.5px', fontWeight: 700 }}>
               SmartWater Customer App
             </div>
@@ -317,7 +321,8 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
 
         {/* Mobile Bottom Navigation Bar */}
         <div style={{
-          height: '60px',
+          minHeight: '72px',
+          flexShrink: 0,
           background: 'white',
           borderTop: '1px solid #E2E8F0',
           display: 'flex',
@@ -331,13 +336,13 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              color: mobileTab === 'tanks' ? '#0077B6' : '#94A3B8',
+              color: mobileTab === 'tanks' ? '#0077B6' : '#64748B',
               fontSize: '14px',
               fontWeight: 600
             }}
           >
             <Droplet size={18} />
-            <span>Water Levels</span>
+            <span>Levels</span>
           </button>
 
           <button 
@@ -346,13 +351,13 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              color: mobileTab === 'report' ? '#0077B6' : '#94A3B8',
+              color: mobileTab === 'report' ? '#0077B6' : '#64748B',
               fontSize: '14px',
               fontWeight: 600
             }}
           >
             <PlusCircle size={18} />
-            <span>Report Issue</span>
+            <span>Report</span>
           </button>
 
           <button 
@@ -361,13 +366,13 @@ export default function MobileAppSimulator({ tanks, reports, onReload, onClose }
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              color: mobileTab === 'my_reports' ? '#0077B6' : '#94A3B8',
+              color: mobileTab === 'my_reports' ? '#0077B6' : '#64748B',
               fontSize: '14px',
               fontWeight: 600
             }}
           >
             <FileText size={18} />
-            <span>My Reports</span>
+            <span>History</span>
           </button>
         </div>
       </div>
