@@ -106,3 +106,8 @@ svg { flex-shrink: 0; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+/* Keep explanatory text visible when metric cards narrow or text is enlarged. */
+.insight-kpis small { white-space: normal; overflow-wrap: anywhere; }
+.insight-tabs { gap: 8px; }
+.insight-tabs button { flex: 0 0 auto; }

@@ -439,7 +439,7 @@ fun SubmitReportScreen(
             colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = Color.White, unfocusedContainerColor = Color.White),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(110.dp),
+                .heightIn(min = 110.dp),
             maxLines = 4
         )
 
@@ -495,7 +495,7 @@ fun SubmitReportScreen(
             enabled = !isSubmitting,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(52.dp),
+                .heightIn(min = 52.dp),
             shape = RoundedCornerShape(14.dp),
             colors = ButtonDefaults.buttonColors(containerColor = MajiOceanBlue)
         ) {

@@ -122,13 +122,13 @@ fun MainAppScreen(api: MajiSmartApiService) {
             lastSyncedAt = java.text.DateFormat.getDateTimeInstance().format(java.util.Date())
             connectionError = null
             if (manual || android.os.SystemClock.elapsedRealtime() - reportsSyncedAt >= 15_000L || reportsSyncedAt == 0L) {
-            val repRes = api.getReports()
-            if (repRes.isSuccessful && repRes.body()?.data != null) {
-                reports = repRes.body()!!.data!!
-                reportsSyncedAt = android.os.SystemClock.elapsedRealtime()
-            } else {
-                connectionError = "Tank data refreshed, but reports could not be refreshed."
-            }
+                val repRes = api.getReports()
+                if (repRes.isSuccessful && repRes.body()?.data != null) {
+                    reports = repRes.body()!!.data!!
+                    reportsSyncedAt = android.os.SystemClock.elapsedRealtime()
+                } else {
+                    connectionError = "Tank data refreshed, but reports could not be refreshed."
+                }
             }
         } catch (e: CancellationException) {
             throw e
