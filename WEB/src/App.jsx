@@ -8,6 +8,7 @@ import Topbar from './components/Topbar';
 import Dashboard from './pages/Dashboard';
 import TankAnalytics from './pages/TankAnalytics';
 import CommunityReports from './pages/CommunityReports';
+import ReportAnalytics from './pages/ReportAnalytics';
 import IncidentMap from './pages/IncidentMap';
 import AlertsCenter from './pages/AlertsCenter';
 import HardwareSimulator from './pages/HardwareSimulator';
@@ -96,6 +97,7 @@ function MainApp() {
       case 'dashboard': return 'Water Monitoring Dashboard';
       case 'analytics': return 'Tank Telemetry Analytics';
       case 'reports': return 'Citizen Community Reports';
+      case 'report-analytics': return 'Report Analytics';
       case 'map': return 'Geographic Infrastructure Map';
       case 'alerts': return 'Telemetry Alerts Center';
       case 'simulator': return 'ESP32 Hardware Simulator';
@@ -107,7 +109,7 @@ function MainApp() {
   const openReportsCount = reports?.filter(r => r.status === 'SUBMITTED' || r.status === 'IN_PROGRESS').length || 0;
 
   return (
-    <div className="app-container">
+    <div className={`app-container ${activeTab === 'report-analytics' ? 'report-view' : ''}`}>
       <Sidebar 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
@@ -135,6 +137,7 @@ function MainApp() {
         )}
 
         <main className="content-area">
+          {activeTab === 'report-analytics' && <ReportAnalytics />}
           {dataError && <div role="alert" style={{ padding: 16, marginBottom: 16, background: '#FFFBEB', color: '#92400E' }}>{dataError}</div>}
           {telemetry.error && <div role="alert" style={{ padding: 16, marginBottom: 16, background: '#FFFBEB', color: '#92400E' }}>{telemetry.error}</div>}
           {activeTab === 'dashboard' && (

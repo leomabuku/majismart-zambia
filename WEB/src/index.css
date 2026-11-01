@@ -697,6 +697,62 @@ input, select, textarea {
 }
 
 /* Leaflet Map Styling */
+.report-analytics { min-width: 0; }
+.sidebar-signin { display: flex; flex-direction: column; gap: 10px; font-size: 12px; }
+.sidebar-signin label { display: flex; flex-direction: column; gap: 5px; }
+.sidebar-signin input { width: 100%; min-width: 0; border-radius: 6px; padding: 9px; border: 1px solid #90E0EF; background: white; color: #0F172A; }
+.sidebar-signin button { background: #CAF0F8; color: #03045E; border-radius: 6px; padding: 9px; font-weight: 600; }
+.report-heading, .report-actions, .report-presets { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.report-heading { justify-content: space-between; margin-bottom: 20px; }
+.report-heading h2 { display: flex; align-items: center; gap: 10px; font-size: 22px; color: #03045E; }
+.report-heading p { color: #64748B; font-size: 13px; margin-top: 6px; }
+.report-actions button { display: inline-flex; align-items: center; gap: 8px; }
+.report-analytics button:disabled { opacity: .55; cursor: not-allowed; }
+.report-filters { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
+.report-filters label { display: flex; flex: 1 1 160px; min-width: 0; flex-direction: column; gap: 7px; font-size: 12px; font-weight: 600; color: #475569; }
+.report-filters input, .report-filters select { width: 100%; min-width: 0; border: 1px solid #CBD5E1; border-radius: 8px; padding: 9px 10px; background: white; color: #0F172A; font: inherit; }
+.report-note { font-size: 12px; color: #64748B; line-height: 1.6; margin: 12px 0 18px; }
+.report-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.report-kpi-label { font-size: 12px; color: #64748B; margin-bottom: 10px; }
+.report-kpi-value { font-size: 28px; color: #03045E; }
+.report-two-column { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin-top: 20px; }
+.report-panel { min-width: 0; margin-bottom: 20px; }
+.report-panel h3 { font-size: 16px; color: #0F172A; margin-bottom: 14px; }
+.report-breakdown { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+.report-breakdown th, .report-breakdown td { padding: 12px 4px; border-bottom: 1px solid #E2E8F0; overflow-wrap: anywhere; }
+.report-breakdown thead th { font-size: 11px; color: #64748B; font-weight: 600; }
+.report-breakdown tbody th { font-weight: 500; }
+.report-breakdown td { text-align: right; font-variant-numeric: tabular-nums; }
+.report-bar-track { display: block; height: 5px; margin-top: 7px; background: #F1F5F9; border-radius: 4px; overflow: hidden; }
+.report-bar-track > span { display: block; height: 100%; background: #0077B6; }
+.report-trend { height: 260px; position: relative; min-width: 0; }
+.report-table-scroll { overflow-x: auto; max-height: 360px; }
+.report-panel summary { cursor: pointer; font-size: 12px; color: #0077B6; margin-top: 16px; }
+.report-error { background: #FFFBEB; color: #92400E; padding: 14px; border-radius: 8px; font-size: 13px; margin-bottom: 18px; }
+.report-empty { color: #64748B; margin-bottom: 20px; }
+@media (max-width: 900px) {
+  .report-view { flex-direction: column; }
+  .report-view .sidebar { width: 100%; height: auto; position: static; }
+  .report-view .brand-section { padding: 14px 20px; }
+  .report-view .nav-menu { display: flex; overflow-x: auto; gap: 8px; padding: 8px 12px; }
+  .report-view .nav-item { flex: 0 0 auto; margin: 0; }
+  .report-view .sidebar-footer { padding: 10px 20px; }
+  .report-view .topbar { flex-wrap: wrap; height: auto; padding: 16px; gap: 12px; }
+  .report-view .topbar-left, .report-view .topbar-right { flex-wrap: wrap; }
+  .report-view .content-area { padding: 16px; }
+  .report-two-column { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .report-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 480px) {
+  .report-kpis { grid-template-columns: minmax(0, 1fr); }
+  .report-heading h2 { font-size: 20px; }
+  .report-actions { width: 100%; }
+  .report-actions button { flex: 1; justify-content: center; }
+  .report-filters { padding: 16px; }
+  .report-presets { gap: 6px; }
+  .report-presets button { padding: 8px 12px; }
+}
+
 .map-container {
   height: 520px;
   border-radius: var(--radius-lg);
@@ -704,3 +760,4 @@ input, select, textarea {
   border: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
 }
+

@@ -22,6 +22,7 @@ import { IoTController } from './controllers/iotController.js';
 import { AuthController } from './controllers/authController.js';
 import { StationController } from './controllers/stationController.js';
 import { ReportController } from './controllers/reportController.js';
+import { getReportAnalytics } from './controllers/reportAnalyticsController.js';
 import { AlertController } from './controllers/alertController.js';
 import { WeatherController } from './controllers/weatherController.js';
 import { authenticateToken, optionalAuth, requireAdmin } from './middleware/auth.js';
@@ -127,6 +128,7 @@ app.put('/api/tanks/:id', authenticateToken, requireAdmin, StationController.upd
 // 4. COMMUNITY REPORTS
 // ==========================================
 app.get('/api/reports', optionalAuth, ReportController.getAllReports);
+app.get('/api/reports/analytics', authenticateToken, requireAdmin, getReportAnalytics);
 app.get('/api/reports/:id', optionalAuth, ReportController.getReportById);
 app.post('/api/reports', optionalAuth, ReportController.createReport);
 app.put('/api/reports/:id/status', authenticateToken, requireAdmin, ReportController.updateStatus);
@@ -190,3 +192,4 @@ export function shutdownServer() {
 
 export { server };
 export default app;
+

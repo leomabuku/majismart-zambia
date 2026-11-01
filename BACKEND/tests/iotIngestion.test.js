@@ -35,6 +35,59 @@ after(async () => {
   await shutdownServer();
 });
 
+test('report analytics requires admin access and validates filters', async () => {
+  assert.equal((await fetch(`${BASE_URL}/api/reports/analytics`)).status, 401);
+  const customer = await fetch(`${BASE_URL}/api/auth/login`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'mwape@community.zm', password: 'CustomerPass2026!' })
+  }).then(res => res.json());
+  assert.equal((await fetch(`${BASE_URL}/api/reports/analytics`, {
+    headers: { Authorization: `Bearer ${customer.token}` }
+  })).status, 403);
+  const token = await loginAsAdmin();
+  const headers = { Authorization: `Bearer ${token}` };
+  assert.equal((await fetch(`${BASE_URL}/api/reports/analytics?start=2026-02-30`, { headers })).status, 400);
+  const response = await fetch(`${BASE_URL}/api/reports/analytics`, { headers });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('cache-control'), 'private, no-store');
+  const { data } = await response.json();
+  assert.equal(data.filters.timezone, 'Africa/Lusaka');
+  assert.equal(data.daily_submissions.length, 30);
+  assert.equal(data.statuses.reduce((sum, row) => sum + row.count, 0), data.total);
+  assert.equal(JSON.stringify(data).includes('reporter_phone'), false);
+});
+
+test('report analytics queries SQLite with correct day boundaries and status history', async () => {
+  const { db } = await import('../src/database/db.js');
+  const prefix = `analytics-${Date.now()}`;
+  try {
+    for (const [suffix, created, status] of [
+      ['outside', '2026-07-02T21:59:59Z', 'SUBMITTED'],
+      ['open', '2026-07-02T22:00:00Z', 'IN_PROGRESS'],
+      ['resolved', '2026-07-03 09:00:00', 'RESOLVED']
+    ]) await db.run(`INSERT INTO community_reports (id, category, title, description, location_name, status, created_at)
+      VALUES (?, 'OTHER', 'Analytics fixture', 'Analytics fixture', 'Analytics test community', ?, ?)`, `${prefix}-${suffix}`, status, created);
+    await db.run(`INSERT INTO report_status_history (id, report_id, previous_status, new_status, created_at)
+      VALUES (?, ?, 'IN_PROGRESS', 'RESOLVED', '2026-07-03 11:00:00')`, `${prefix}-history`, `${prefix}-resolved`);
+    await db.run(`INSERT INTO report_status_history (id, report_id, previous_status, new_status, created_at)
+      VALUES (?, ?, 'RESOLVED', 'RESOLVED', '2026-07-03 12:00:00')`, `${prefix}-resave`, `${prefix}-resolved`);
+    const token = await loginAsAdmin();
+    const response = await fetch(`${BASE_URL}/api/reports/analytics?start=2026-07-03&end=2026-07-03&category=OTHER`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    assert.equal(response.status, 200);
+    const { data } = await response.json();
+    assert.equal(data.total, 2);
+    assert.equal(data.open, 1);
+    assert.equal(data.average_resolution_hours, 2);
+    assert.deepEqual(data.daily_submissions, [{ date: '2026-07-03', count: 2 }]);
+  } finally {
+    await db.run('DELETE FROM report_status_history WHERE id = ?', `${prefix}-resave`);
+    await db.run('DELETE FROM report_status_history WHERE id = ?', `${prefix}-history`);
+    for (const suffix of ['outside', 'open', 'resolved']) await db.run('DELETE FROM community_reports WHERE id = ?', `${prefix}-${suffix}`);
+  }
+});
+
 test('system health check', async () => {
   const response = await fetch(`${BASE_URL}/api/health`);
   assert.equal(response.status, 200);
@@ -160,3 +213,4 @@ test('hides rejected reports from unauthenticated users', async () => {
   const unauthenticatedResponse = await fetch(`${BASE_URL}/api/reports/${created.data.id}`);
   assert.equal(unauthenticatedResponse.status, 404);
 });
+

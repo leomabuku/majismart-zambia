@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   LayoutDashboard, 
+  BarChart3,
   Droplet, 
   FileText, 
   MapPin, 
@@ -14,7 +15,21 @@ import {
 import { useAuth } from '../context/AuthContext';
 
 export default function Sidebar({ activeTab, setActiveTab, alertCount, reportCount, isLive }) {
-  const { user, logout, login } = useAuth();
+  const { user, logout, login, loading } = useAuth();
+  const [credentials, setCredentials] = useState({ email: '', password: '' });
+  const [signingIn, setSigningIn] = useState(false);
+  const [loginError, setLoginError] = useState('');
+
+  const signIn = async event => {
+    event.preventDefault();
+    setSigningIn(true); setLoginError('');
+    try {
+      const result = await login(credentials.email.trim(), credentials.password);
+      if (!result.success) setLoginError(result.error || 'Sign-in failed. Check your details.');
+      else setCredentials({ email: '', password: '' });
+    } catch { setLoginError('Unable to sign in. Check your connection and try again.'); }
+    finally { setSigningIn(false); }
+  };
 
   return (
     <aside className="sidebar">
@@ -33,6 +48,10 @@ export default function Sidebar({ activeTab, setActiveTab, alertCount, reportCou
 
       {/* Navigation */}
       <nav className="nav-menu">
+        {user?.role === 'admin' && <button
+          className={`nav-item ${activeTab === 'report-analytics' ? 'active' : ''}`}
+          onClick={() => setActiveTab('report-analytics')}
+        ><BarChart3 size={18} /><span>Report Analytics</span></button>}
         <button 
           className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
           onClick={() => setActiveTab('dashboard')}
@@ -88,6 +107,14 @@ export default function Sidebar({ activeTab, setActiveTab, alertCount, reportCou
 
       {/* User Footer */}
       <div className="sidebar-footer">
+        {!user && !loading && <form onSubmit={signIn} className="sidebar-signin">
+          <p>Administrator / staff sign-in</p>
+          <label>Email<input type="email" autoComplete="username" required value={credentials.email} onChange={e => setCredentials(c => ({ ...c, email: e.target.value }))} /></label>
+          <label>Password<input type="password" autoComplete="current-password" required value={credentials.password} onChange={e => setCredentials(c => ({ ...c, password: e.target.value }))} /></label>
+          {loginError && <p role="alert">{loginError}</p>}
+          <button type="submit" disabled={signingIn}>{signingIn ? 'Signing in…' : 'Sign in'}</button>
+        </form>}
+        {user &&
         <div className="user-profile-widget">
           <div className="user-avatar">
             {user?.full_name ? user.full_name[0] : 'U'}
@@ -99,24 +126,15 @@ export default function Sidebar({ activeTab, setActiveTab, alertCount, reportCou
             </span>
           </div>
           <button 
-            title="Switch / Logout" 
-            onClick={() => {
-              if (!import.meta.env.DEV) {
-                logout();
-                return;
-              }
-              if (user?.role === 'admin') {
-                login('mwape@community.zm', 'CustomerPass2026!');
-              } else {
-                login('admin@majismart.zm', 'AdminPassword2026!');
-              }
-            }}
+            title="Sign out"
+            onClick={logout}
             style={{ color: '#90E0EF', padding: '4px' }}
           >
             <ShieldCheck size={18} />
           </button>
-        </div>
+        </div>}
       </div>
     </aside>
   );
 }
+

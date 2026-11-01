@@ -18,8 +18,8 @@ export const api = {
     return headers;
   },
 
-  async get(endpoint) {
-    const res = await fetch(`${API_BASE}${endpoint}`, { credentials: 'omit', headers: this.getHeaders() });
+  async get(endpoint, { signal } = {}) {
+    const res = await fetch(`${API_BASE}${endpoint}`, { credentials: 'omit', headers: this.getHeaders(), signal });
     return res.json();
   },
 
