@@ -1638,3 +1638,6 @@ input, select, textarea {
   color: var(--text-muted);
 }
 
+
+.insight-applied {display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:11px;color:#64748B;margin:12px 0;}
+.insight-filter-chip {background:#E0F2FE;color:#075985;padding:5px 9px;border-radius:6px;}

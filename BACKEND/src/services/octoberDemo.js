@@ -83,7 +83,8 @@ async function insertRows(tx, table, rows, conflict = 'id') {
 
 export async function ensureOctoberDemo(db) {
   const existing = await db.get('SELECT value FROM system_settings WHERE key = ?', OCTOBER_DEMO.key);
-  if (existing) return JSON.parse(existing.value);
+  // SQLite stores text; PostgreSQL JSONB is already decoded by pg.
+  if (existing) return typeof existing.value === 'string' ? JSON.parse(existing.value) : existing.value;
   const batch = buildOctoberDemo();
   const metadata = { ...OCTOBER_DEMO, reports:batch.reports.length, provenance:'SIMULATED' };
   await db.transaction(async tx => {
