@@ -149,6 +149,49 @@ return 404 on the old build.
 
 ---
 
+## 5. Deployment verification (1 Nov 2026, ~07:40 UTC)
+
+Render rebuilt `majismart-api` from this branch and the merged code is live:
+
+| Check | Result |
+|---|---|
+| `GET /api/health` | `ONLINE`, `db_mode: supabase`, `google_signin: true` |
+| `GET /api/analytics/telemetry` | `401 Access token required` → **route exists**, new build serving (it returned `Cannot GET` before the deploy) |
+| `GET /api/tanks` | now returns `current_volume_l`, `current_condition`, `installation_status`, `device_id_code`, `device_status` |
+| Demo telemetry | `SIM_TANK_001/002/003` devices `ONLINE`, readings every 90 s through the calibrated pipeline |
+
+Beware probe caching: `fetch`-style checks against `majismart-api.onrender.com`
+returned an hour-old body until the URL carried a cache-busting query string.
+Always probe with `?cachebust=<random>` before concluding a deploy failed.
+
+### Open issue found during verification: a legacy ingestion path still writes readings
+
+`supabase/functions/receive-reading` (slug `receive-reading`, `verify_jwt: false`)
+is **active on the project**. It inserts into `water_level_readings` and updates
+`tanks` directly with the service role, so it bypasses every rule the new model
+introduced: no device credential issued by the installation flow, no geometry, no
+calibration state, no provenance, no dead-zone or range validation.
+
+It is currently writing as the **revoked** device `ESP32_001` against `tank-001`
+every ~10 seconds with a constant `distance_cm = 11.99`, which the function turns
+into `0.00 %` / `CRITICAL`. That is why the live dashboard shows TANK_001 stuck at
+0 % while its own SIMULATED reading said 58 % — two writers, last one wins.
+
+Recommended remediation, in order:
+
+1. Rotate the shared device key (`IOT_API_KEY`) or the constant the edge function
+   checks, so the old path stops accepting writes, and confirm the field device is
+   reconfigured to `POST /api/iot/readings` with its own installation credential.
+2. Retire `receive-reading` (delete the function) once no device points at it.
+   Keeping it means the API's guarantees can be silently bypassed.
+3. If the path must stay, make it validate through the API instead of writing to
+   the database directly.
+
+Nothing was deleted or rotated here: that changes how a physical device in the
+field authenticates, and it needs the owner's decision.
+
+---
+
 ## 5. What is still unverified
 
 | Item | Why |
