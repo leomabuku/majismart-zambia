@@ -208,6 +208,7 @@ function MainApp() {
               stations={stations}
               tanks={tanks}
               reports={reports}
+              isAdmin={isAdmin}
             />
           )}
 

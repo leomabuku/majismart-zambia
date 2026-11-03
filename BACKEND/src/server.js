@@ -32,6 +32,7 @@ import { InstallationController } from './controllers/installationController.js'
 import { AnalyticsController } from './controllers/analyticsController.js';
 import { AlertController } from './controllers/alertController.js';
 import { WeatherController } from './controllers/weatherController.js';
+import { getNearby, listPoints, createPoint, updatePoint } from './controllers/geospatialController.js';
 import { authenticateToken, optionalAuth, requireAdmin } from './middleware/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -196,6 +197,12 @@ app.get('/api/auth/me', authenticateToken, AuthController.getProfile);
 // Admin-only user directory and role management (Settings > Team & Roles).
 app.get('/api/users', authenticateToken, requireAdmin, UserController.listUsers);
 app.patch('/api/users/:id/role', authenticateToken, requireAdmin, UserController.updateRole);
+
+// GIS results are restricted to administrators; no direct database access is exposed.
+app.get('/api/gis/nearby/:layer(water-points|reports)', authenticateToken, requireAdmin, getNearby);
+app.get('/api/gis/water-points', authenticateToken, requireAdmin, listPoints);
+app.post('/api/gis/water-points', authenticateToken, requireAdmin, createPoint);
+app.put('/api/gis/water-points/:id', authenticateToken, requireAdmin, updatePoint);
 
 // ==========================================
 // 3. MONITORING STATIONS & TANKS

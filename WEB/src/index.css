@@ -1692,3 +1692,27 @@ input, select, textarea {
 .water-fill.unknown {
   background: transparent;
 }
+
+.gis-search { background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; margin-bottom: 16px; color: #334155; }
+.gis-search h3 { margin: 0 0 8px; }
+.gis-search p { margin: 8px 0; font-size: .875rem; }
+.gis-form, .gis-toggles { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin-top: 12px; }
+.gis-form label { display: flex; flex-direction: column; gap: 4px; font-size: .875rem; }
+.gis-form input { max-width: 170px; padding: 8px; border: 1px solid #94a3b8; border-radius: 6px; }
+.gis-form button { padding: 9px 14px; border: 0; border-radius: 6px; background: #0369a1; color: white; cursor: pointer; }
+.gis-form button:disabled { opacity: .6; }
+.gis-toggles label { font-size: .875rem; }
+.gis-manager { background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px; margin-bottom: 16px; color: #334155; }
+.gis-manager p { font-size: .875rem; }
+.gis-manager h3 { margin: 18px 0 10px; }
+.gis-manager button { border: 1px solid #94a3b8; background: white; border-radius: 6px; padding: 8px 12px; color: #164e63; cursor: pointer; }
+.gis-manager button:disabled { opacity: .55; cursor: default; }
+.gis-manager-toggle, .gis-point-form button[type=submit] { font-weight: 600; }
+.gis-point-form { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+.gis-point-form label:not(.gis-check) { display: flex; flex-direction: column; gap: 4px; font-size: .875rem; }
+.gis-point-form input:not([type=checkbox]), .gis-point-form select { width: 190px; max-width: 100%; padding: 8px; border: 1px solid #94a3b8; border-radius: 6px; }
+.gis-point-form .gis-wide { flex-basis: 100%; }
+.gis-point-form .gis-wide input:not([type=checkbox]) { width: min(100%, 540px); }
+.gis-check { display: flex; align-items: flex-start; gap: 8px; font-size: .875rem; }
+.gis-actions { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.gis-point-list article { display: flex; gap: 12px; justify-content: space-between; align-items: center; border-top: 1px solid #e2e8f0; padding: 10px 0; overflow-wrap: anywhere; font-size: .875rem; }

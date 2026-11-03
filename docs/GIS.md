@@ -1,0 +1,52 @@
+# Smart Water Zambia GIS: first release
+
+## Architecture and data
+
+The existing Leaflet incident map and existing station, installation and report APIs remain in place. Administrators can search around a map click or typed WGS84 latitude/longitude; two new, separately controlled result layers show verified water points and nearby reports. Searches use straight-line distance, not routes, safety, service coverage, or a confirmed impact assessment. Existing stations and tanks can be seed/demo data; their positions and operational state are not automatically verified. Reports are user submissions, not verified incidents. A verified water-point location does not establish present access, water quality, or operational status.
+
+No water points or service areas are seeded by this feature. `gis_water_points` stores provenance (`source`), location verification and separately recorded operational status. Only `VERIFIED` locations are returned; a verified location may still have unknown or non-operational status. Administrators can add and edit water points in the map’s **Manage water points** panel. New records default to unverified. Verification requires an explicit confirmation and a source/evidence reference. Changes to the coordinates or source of a verified point must first be saved as unverified and then reviewed again. Only verified records appear in nearby search. The existing `tank_installations` coordinates, not their station's, represent tank locations. No service-area, network, hotspot, routing, or Android GIS features are added.
+
+The API's Postgres connection bypasses Supabase RLS. All GIS endpoints require an authenticated **admin** and return a limited allowlist of fields. Reports omit names, phones, account identifiers, titles, descriptions, photos, location names and notes, and exclude rejected and simulated/test reports. Unknown provenance is explicitly labelled; it is not proof of operational data. Water-point coordinates and sources are also restricted to admins. Existing map/API behavior and its existing privacy rules are unchanged. The GIS water-point and audit-event tables enable RLS and revoke direct `anon`/`authenticated` access. API-created and edited records have transactionally recorded before/after snapshots and the administrator account in `gis_water_point_events`; no audit viewer is provided. Updates use a revision number to prevent silent overwrites. Direct database edits bypass the API review and audit workflow. There is no public GIS API.
+
+## Database and deployment
+
+- SQLite is the default local mode. `initDatabase` applies `BACKEND/database/migrations/007_gis_sqlite.sql` and `008_gis_review_sqlite.sql`. A JavaScript haversine calculation scans eligible rows, sorts by distance and limits results. This is **unindexed and intended for development only**; its spherical distances may differ from PostGIS. It does not execute PostGIS SQL.
+- `DB_MODE=supabase` uses the existing `pg` pool and PostGIS geography `ST_DWithin` and `ST_Distance` in metres. `supabase/migrations/20261103000001_gis.sql` creates PostGIS in the `extensions` schema, derives SRID 4326 points from valid coordinates, keeps points in sync with a trigger on every insert/update, and creates GiST geography expression indexes. Missing, out-of-range and `(0,0)` coordinates produce NULL geometry. GeoJSON is `[longitude, latitude]`; Leaflet is `[latitude, longitude]`.
+- `supabase/migrations/20261103000002_gis_water_point_review.sql` adds revisions and restricted audit history for the admin workflow.
+- Before deployment, use a **disposable copy** of the target database to test all migrations and the integration test below. Confirm `SELECT e.extname, n.nspname FROM pg_extension e JOIN pg_namespace n ON n.oid=e.extnamespace WHERE e.extname='postgis';`. The migration requires PostGIS in `extensions` and permission to create the extension, triggers, indexes and schema. It intentionally fails if PostGIS is installed elsewhere; consult the database administrator rather than moving an existing extension blindly. Existing Supabase roles `anon` and `authenticated` are required by this repository's migrations. This has not been checked against a live Supabase project.
+- With approval, back up the database, verify extension/permissions and run `supabase db push` using the repository's normal linked-project workflow. Production uses `AUTO_MIGRATE=false`; deploying the API alone does not apply this migration. The backfill updates every row in four tables and builds indexes non-concurrently; schedule a maintenance window for large datasets. If unavailable or migration is missing the endpoint responds 503, not fabricated results.
+- Recovery: restore the pre-migration backup or, after DBA review, drop the four `idx_*_gis_geography` indexes, four `gis_sync_point` triggers and `gis_point` columns, then `public.gis_sync_point()`. Preserve/export `gis_water_points` and `gis_water_point_events` before considering their removal. Do not drop the shared PostGIS extension. Coordinate columns and existing records are not deleted by the migration.
+
+### Local start and verification
+
+Use Node 24 (the repository CI/container version). Install with `npm ci --prefix BACKEND` and `npm ci --prefix WEB`. Set `JWT_SECRET` and `IOT_API_KEY` in the environment (see `BACKEND/.env.example`), use `DB_MODE=sqlite`, then run `npm --prefix BACKEND start` and `npm --prefix WEB run dev`. Sign in with an administrator account, open the map, click a point or enter coordinates, set a radius up to 50,000 metres, and select **Find nearby**. Use **Manage water points** to enter real records with a source, then review their locations. An empty water-point layer is expected until records are verified. Search again after saving to refresh results. The map uses OpenStreetMap tiles, which require network access.
+
+`JWT_SECRET=test-secret IOT_API_KEY=test-device-key npm --prefix BACKEND test` exercises the local implementation. To verify the PostGIS migration, prepare a **disposable** database with all earlier Supabase migrations but not this GIS migration and set `TEST_GIS_DATABASE_URL` to its connection string, then run `node --test BACKEND/tests/gisPostgis.test.js`. The test uses a transaction and rolls back, but takes DDL locks and requires extension creation rights. Never point it at production. No GIS-specific environment variable is needed in the running application.
+
+## API
+
+All endpoints use `Authorization: Bearer <admin token>`. For nearby searches, the parameters `latitude` and `longitude` are required decimal degrees, `radiusMeters` defaults to 5000 and must be > 0 and <= 50000, `limit` defaults to 50 and must be 1–100. `(0,0)`, malformed or repeated parameters are rejected. Results are nearest first; `meta.truncated` means the limit was reached and additional results may exist. There is no pagination beyond the limit.
+
+- `GET /api/gis/nearby/water-points?latitude=-15.4&longitude=28.3&radiusMeters=5000`
+- `GET /api/gis/nearby/reports?latitude=-15.4&longitude=28.3&radiusMeters=5000`
+
+Shape (illustrative structure only, not an actual location):
+
+```json
+{"success":true,"data":{"type":"FeatureCollection","features":[]},"meta":{"latitude":-15.4,"longitude":28.3,"radiusMeters":5000,"limit":50,"method":"PostGIS geography","truncated":false}}
+```
+
+Management endpoints:
+
+- `GET /api/gis/water-points?limit=20&offset=0` lists verified and unverified records, with `meta.hasMore` (maximum 100 per page).
+- `POST /api/gis/water-points` adds a record. `PUT /api/gis/water-points/:id` replaces its editable fields and requires the current numeric `revision`; stale edits return 409. Editable fields are `name`, `type` (`BOREHOLE`, `KIOSK`, `PUBLIC_TAP`, `OTHER`), `latitude`, `longitude`, `source`, `operational_status` (`UNKNOWN`, `OPERATIONAL`, `NOT_OPERATIONAL`), `verification_status` (`UNVERIFIED`, `VERIFIED`), and optional `community` and `district`. `confirm_verified: true` is required whenever saving a verified point. Source must identify the evidence (5–500 characters). Editing a verified location's coordinates or source while keeping it verified is rejected; first save it as unverified, then recheck and verify. There is no deletion API; mark records unverified if they should no longer appear in proximity searches. These review safeguards apply to API writes, not direct SQL.
+
+Each nearby point has a GeoJSON `Point` geometry and `properties.distance_meters`. Water points include source, type, verification and recorded status; reports include category, status, time and provenance. Validation errors are 400; unauthenticated and unauthorized requests are 401/403; unavailable GIS data is 503.
+
+## QGIS and responsible imports
+
+1. Obtain a dataset from an official utility, district, field survey, or a licensed source such as OpenStreetMap; check permission, licence, date, attribution and completeness. OSM features are not automatically verified or exhaustive.
+2. In QGIS inspect the original CRS and metadata; reproject a copy to EPSG:4326, inspect in context, validate geometry and remove duplicates or malformed/empty points. Preserve identifiers, source, collection date, licence and verification evidence outside the table if necessary.
+3. Export GeoJSON for review (coordinates are longitude first), or load into an isolated PostGIS staging table. Have an authorized operator compare sample points and evidence, resolve conflicts, and explicitly decide which location records are verified. Do not treat an unknown operational status as operational.
+4. For small datasets, enter each reviewed point in the administrator map panel, including a source and its verification decision. For bulk work, import through a controlled, parameterized database transaction into `gis_water_points` with stable IDs, type, latitude, longitude, source and verification status. Use least privilege, backups and external audit logs: direct SQL imports bypass the in-app audit history. Upsert only reviewed changes and re-check coordinates; the trigger derives geometry. There is no bulk import endpoint or automatic sync in this release. Revoke verification if evidence becomes stale, and keep prior versions and provenance in the organization's dataset archive.
+5. Service boundaries require their own verified source and a future validated polygon schema; do not approximate them with proximity circles. Population, flood, climate, routing and hotspot analysis remain future work pending appropriate data and methods.

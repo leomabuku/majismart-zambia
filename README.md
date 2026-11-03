@@ -151,3 +151,7 @@ Node 24 is required in CI and containers (local dev uses `node:sqlite`).
 - **Administrator and customer seed passwords** are supplied through backend environment variables and must not be committed.
 - **IoT devices** authenticate through a provisioned `x-api-key` header.
 - Local development uses the seeded demo accounts described by the test setup; rotate all credentials before production.
+
+### GIS proximity search
+
+The existing map includes an administrator-only nearby search for verified water points and community reports. PostGIS deployment requirements, API privacy, SQLite limitations and the QGIS data-review workflow are documented in [docs/GIS.md](docs/GIS.md). No water points are seeded by this feature.

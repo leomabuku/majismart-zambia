@@ -49,3 +49,10 @@ export function escapeHtml(value) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 }
+
+// GeoJSON uses longitude, latitude; Leaflet uses latitude, longitude.
+export function geoJsonPointToLeaflet(feature) {
+  const c = feature?.geometry?.type === 'Point' ? feature.geometry.coordinates : null;
+  if (!Array.isArray(c) || c.length < 2 || typeof c[0] !== 'number' || typeof c[1] !== 'number' || !hasPin({latitude:c[1], longitude:c[0]})) return null;
+  return [c[1], c[0]];
+}

@@ -1,16 +1,39 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
-import { Layers, Droplet, AlertTriangle, MapPin } from 'lucide-react';
-import { escapeHtml, directionsUrl, formatAccuracy, formatCoords, hasPin } from '../utils/geo';
+import { api } from '../services/api';
+import WaterPointManager from '../components/WaterPointManager';
+import { escapeHtml, directionsUrl, formatAccuracy, formatCoords, hasPin, geoJsonPointToLeaflet } from '../utils/geo';
 
-export default function IncidentMap({ stations, tanks, reports }) {
+export default function IncidentMap({ stations, tanks, reports, isAdmin }) {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
   const markersLayer = useRef(null);
+  const gisLayer = useRef(null);
+  const requestVersion = useRef(0);
 
   const [showStations, setShowStations] = useState(true);
   const [showReports, setShowReports] = useState(true);
-  const [selectedIncident, setSelectedIncident] = useState(null);
+  const [latitude, setLatitude] = useState('');
+  const [longitude, setLongitude] = useState('');
+  const [radius, setRadius] = useState('5000');
+  const [results, setResults] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [showWaterPoints, setShowWaterPoints] = useState(true);
+  const [showNearbyReports, setShowNearbyReports] = useState(true);
+
+  async function searchNearby(event) {
+    event.preventDefault();
+    const version = ++requestVersion.current;
+    setLoading(true); setResults(null);
+    const params = new URLSearchParams({ latitude, longitude, radiusMeters: radius });
+    const [water, incidents] = await Promise.all([
+      api.get(`/gis/nearby/water-points?${params}`), api.get(`/gis/nearby/reports?${params}`)
+    ]);
+    if (version !== requestVersion.current) return;
+    setResults({ water, incidents }); setLoading(false);
+  }
+
+  useEffect(() => () => { requestVersion.current++; mapInstance.current?.remove(); mapInstance.current = null; }, []);
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -25,6 +48,10 @@ export default function IncidentMap({ stations, tanks, reports }) {
       }).addTo(map);
 
       markersLayer.current = L.layerGroup().addTo(map);
+      gisLayer.current = L.layerGroup().addTo(map);
+      if (isAdmin) map.on('click', event => {
+        setLatitude(event.latlng.lat.toFixed(6)); setLongitude(event.latlng.lng.toFixed(6));
+      });
       mapInstance.current = map;
     }
 
@@ -113,16 +140,43 @@ export default function IncidentMap({ stations, tanks, reports }) {
     }
   }, [stations, tanks, reports, showStations, showReports]);
 
+  useEffect(() => {
+    const layer = gisLayer.current;
+    if (!layer) return;
+    layer.clearLayers();
+    const meta = results?.water?.success ? results.water.meta : results?.incidents?.success ? results.incidents.meta : null;
+    if (meta) {
+      L.circle([meta.latitude, meta.longitude], { radius: meta.radiusMeters, color: '#475569', weight: 1, dashArray: '5 5', fillOpacity: 0.03 })
+        .bindPopup('Search radius only — not a service boundary').addTo(layer);
+    }
+    for (const [response, visible, color, label] of [
+      [results?.water, showWaterPoints, '#0f766e', 'Water point'],
+      [results?.incidents, showNearbyReports, '#7c3aed', 'Nearby report']
+    ]) {
+      if (!visible || !response?.success) continue;
+      for (const feature of response.data.features) {
+        const pos = geoJsonPointToLeaflet(feature);
+        if (!pos) continue;
+        const p = feature.properties;
+        const detail = label === 'Water point'
+          ? `${escapeHtml(p.name)}<br>Type: ${escapeHtml(p.type)}<br>Recorded status: ${escapeHtml(p.operational_status)}<br>Source: ${escapeHtml(p.source)}<br>Location verified; current access and safety not confirmed`
+          : `${escapeHtml(p.category)}<br>Status: ${escapeHtml(p.status)}<br>Provenance: ${escapeHtml(p.provenance)} (not independently verified)`;
+        L.circleMarker(pos, { radius: 11, color, weight: 3, fillOpacity: 0.3 })
+          .bindPopup(`<strong>${label}</strong><br>${detail}<br>Distance: ${Math.round(p.distance_meters)} m straight-line`).addTo(layer);
+      }
+    }
+  }, [results, showWaterPoints, showNearbyReports]);
+
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '20px' }}>
         <div>
           <h2 style={{ fontSize: '1.375rem', color: '#03045E' }}>Geographic Infrastructure & Incidents</h2>
-          <p style={{ fontSize: '0.875rem', color: '#64748B' }}>Spatial distribution of storage reservoirs, water towers, and citizen alerts</p>
+          <p style={{ fontSize: '0.875rem', color: '#64748B' }}>Stored locations of stations, tanks and citizen reports; locations and statuses may be unverified or simulated.</p>
         </div>
 
         {/* Map Layers Filter */}
-        <div style={{ display: 'flex', gap: '12px', background: 'white', padding: '6px 14px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', background: 'white', padding: '6px 14px', borderRadius: '10px', border: '1px solid #E2E8F0' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.875rem', cursor: 'pointer' }}>
             <input 
               type="checkbox" 
@@ -145,9 +199,31 @@ export default function IncidentMap({ stations, tanks, reports }) {
         </div>
       </div>
 
+      {isAdmin && <section className="gis-search" aria-label="Nearby search">
+        <h3>Nearby search</h3>
+        <p>Click the map or enter coordinates. Distances are straight-line estimates, not proof of access, water quality, service coverage or current operation.</p>
+        <form onSubmit={searchNearby} className="gis-form">
+          <label>Latitude <input required type="number" step="any" min="-90" max="90" value={latitude} onChange={e => setLatitude(e.target.value)} /></label>
+          <label>Longitude <input required type="number" step="any" min="-180" max="180" value={longitude} onChange={e => setLongitude(e.target.value)} /></label>
+          <label>Radius (metres) <input required type="number" min="1" max="50000" step="any" value={radius} onChange={e => setRadius(e.target.value)} /></label>
+          <button type="submit" disabled={loading}>{loading ? 'Searching…' : 'Find nearby'}</button>
+        </form>
+        <div className="gis-toggles">
+          <label><input type="checkbox" checked={showWaterPoints} onChange={e => setShowWaterPoints(e.target.checked)} /> Verified water points</label>
+          <label><input type="checkbox" checked={showNearbyReports} onChange={e => setShowNearbyReports(e.target.checked)} /> Nearby reports</label>
+        </div>
+        <div role="status" aria-live="polite">
+          {loading && 'Searching nearby locations…'}
+          {!loading && results && (results.water.success || results.incidents.success) && <p>Last search: {formatCoords((results.water.success ? results.water : results.incidents).meta.latitude, (results.water.success ? results.water : results.incidents).meta.longitude)} · {(results.water.success ? results.water : results.incidents).meta.radiusMeters} m radius</p>}
+          {!loading && results && [ ['Water points', results.water], ['Reports', results.incidents] ].map(([label, response]) =>
+            <p key={label}>{label}: {response.success ? `${response.data.features.length} found${response.meta.truncated ? ' (limit reached)' : ''}` : `Unavailable — ${response.error || 'request failed'}`}</p>)}
+        </div>
+      </section>}
+      {isAdmin && <WaterPointManager latitude={latitude} longitude={longitude} onChanged={() => { requestVersion.current++; setLoading(false); setResults(null); }} />}
       {/* Map Element */}
       <div className="map-container" ref={mapRef} />
 
+      {isAdmin && <p style={{fontSize:'0.875rem', color:'#475569', marginTop:8}}>Nearby search: teal ring = verified water point; purple ring = report. Existing map pins remain visible according to the layer controls above.</p>}
       {/* Map Legend */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px', marginTop: '16px', background: 'white', padding: '12px 20px', borderRadius: '10px', border: '1px solid #E2E8F0', fontSize: '0.875rem', color: '#475569' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

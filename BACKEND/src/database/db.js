@@ -408,6 +408,10 @@ export async function initDatabase() {
   sqlite.exec(fs.readFileSync(path.resolve(__dirname, '../../database/migrations/004_calibration.sql'), 'utf8'));
   sqlite.exec(fs.readFileSync(path.resolve(__dirname, '../../database/migrations/005_sensor_faults.sql'), 'utf8'));
   sqlite.exec(fs.readFileSync(path.resolve(__dirname, '../../database/migrations/006_report_details.sql'), 'utf8'));
+  sqlite.exec(fs.readFileSync(path.resolve(__dirname, '../../database/migrations/007_gis_sqlite.sql'), 'utf8'));
+  const gisColumns = new Set(sqlite.prepare('PRAGMA table_info(gis_water_points)').all().map(c => c.name));
+  if (!gisColumns.has('revision')) sqlite.exec('ALTER TABLE gis_water_points ADD COLUMN revision INTEGER NOT NULL DEFAULT 1 CHECK (revision >= 1)');
+  sqlite.exec(fs.readFileSync(path.resolve(__dirname, '../../database/migrations/008_gis_review_sqlite.sql'), 'utf8'));
 
   // Seed default data if profiles table is empty
   seedDefaultData();
