@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import pg from 'pg';
+import { nearby, parseNearby } from '../src/services/geospatialService.js';
 
 // Only point this at a disposable PostgreSQL database with all earlier migrations applied.
 test('PostGIS migration backfill, synchronization, index and metre query', { skip: !process.env.TEST_GIS_DATABASE_URL }, async () => {
@@ -13,6 +14,9 @@ test('PostGIS migration backfill, synchronization, index and metre query', { ski
     const sql = await fs.readFile(new URL('../../supabase/migrations/20261103000001_gis.sql', import.meta.url), 'utf8');
     await client.query(sql);
     const reviewSql = await fs.readFile(new URL('../../supabase/migrations/20261103000002_gis_water_point_review.sql', import.meta.url), 'utf8');
+    await client.query(reviewSql);
+    // Reapplication should preserve records and recreate triggers/indexes safely.
+    await client.query(sql);
     await client.query(reviewSql);
     await client.query("INSERT INTO public.gis_water_points (id,name,type,latitude,longitude,source) VALUES ('gis-migration-water','test','BOREHOLE',-15.4,28.3,'test survey')");
     await client.query("UPDATE public.gis_water_points SET longitude=28.4, revision=revision+1 WHERE id='gis-migration-water'");
@@ -33,5 +37,25 @@ test('PostGIS migration backfill, synchronization, index and metre query', { ski
     assert.equal(result.rows[0].nearby,true);
     result = await client.query("SELECT indexname FROM pg_indexes WHERE schemaname='public' AND indexname='idx_community_reports_gis_geography'");
     assert.equal(result.rowCount,1);
+
+    await client.query(`INSERT INTO public.gis_water_points (id,name,type,latitude,longitude,source,verification_status)
+      VALUES ('gis-near','near','BOREHOLE',-15.4,28.3,'survey','VERIFIED'),
+             ('gis-far','far','KIOSK',-15.41,28.3,'survey','VERIFIED'),
+             ('gis-unverified','unverified','KIOSK',-15.4,28.3,'survey','UNVERIFIED'),
+             ('gis-outside','outside','KIOSK',-16.4,28.3,'survey','VERIFIED')`);
+    // The API's adapter converts ? placeholders to pg parameters in this same order.
+    const db = { all: async (sql, ...params) => {
+      let i = 0;
+      return (await client.query(sql.replace(/\?/g, () => `$${++i}`), params)).rows;
+    } };
+    const input = parseNearby({latitude:'-15.4', longitude:'28.3', radiusMeters:'5000', limit:'2'});
+    const water = await nearby(db, 'supabase', 'water-points', input);
+    assert.deepEqual(water.features.map(f => f.properties.id), ['gis-near','gis-far']);
+    assert.deepEqual(water.features[0].geometry.coordinates, [28.3,-15.4]);
+    assert.ok(water.features[0].properties.distance_meters < 1);
+    assert.ok(water.features[1].properties.distance_meters > 1000 && water.features[1].properties.distance_meters < 1200);
+    const reports = await nearby(db, 'supabase', 'reports', input);
+    assert.ok(reports.features.some(f => f.properties.id === 'gis-migration-test'));
+    assert.ok(!reports.features.some(f => f.properties.id === 'gis-migration-invalid'));
   } finally { await client.query('ROLLBACK'); await client.end(); }
 });

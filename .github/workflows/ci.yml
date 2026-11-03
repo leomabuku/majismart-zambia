@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'arena/**']
   pull_request:
 
 concurrency:
@@ -51,13 +51,54 @@ jobs:
           # Repository variable, so CI builds the same API origin production uses.
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || 'https://majismart-api.onrender.com/api' }}
 
+  postgis:
+    name: GIS migration and proximity tests (PostGIS)
+    runs-on: ubuntu-latest
+    services:
+      postgis:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_USER: gis_test
+          POSTGRES_PASSWORD: gis_test_only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gis_test -d postgres"
+          --health-interval 10s --health-timeout 5s --health-retries 12
+    env:
+      TEST_GIS_DATABASE_URL: postgresql://gis_test:gis_test_only@127.0.0.1:5432/gis_test
+      GIS_TEST_BOOTSTRAP: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: BACKEND/package-lock.json
+      - run: npm ci
+        working-directory: BACKEND
+      # The PostGIS image preinstalls its extension in the default DB's public schema.
+      # Create a clean DB from template0 so the migration installs it in extensions.
+      - name: Create clean disposable database
+        working-directory: BACKEND
+        run: >-
+          node --input-type=module -e "import pg from 'pg';
+          const u = new URL(process.env.TEST_GIS_DATABASE_URL); u.pathname = '/postgres';
+          const c = new pg.Client({connectionString: u.toString()}); await c.connect();
+          await c.query('CREATE DATABASE gis_test TEMPLATE template0'); await c.end();"
+      - name: Apply baseline migrations to disposable database
+        run: node BACKEND/scripts/prepare-gis-test-db.mjs
+      - name: Test GIS migrations and indexed proximity queries
+        run: node --test BACKEND/tests/gisPostgis.test.js
+
   # Optional: apply reviewed migrations to Supabase before the API deploys.
   # Requires repository secrets SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF,
   # SUPABASE_DB_PASSWORD. Safe to delete if you run migrations from a laptop.
   migrate:
     name: Apply Supabase migrations
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: [backend]
+    needs: [backend, web, postgis]
     runs-on: ubuntu-latest
     environment: production
     steps:
