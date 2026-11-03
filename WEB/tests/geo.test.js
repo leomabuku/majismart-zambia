@@ -23,3 +23,16 @@ test('GeoJSON point conversion uses longitude first and rejects missing or inval
   assert.equal(geoJsonPointToLeaflet({geometry:{type:'Polygon',coordinates:[]}}), null);
   assert.equal(geoJsonPointToLeaflet(null), null);
 });
+
+import { gisSearchOrigins } from '../src/utils/geo.js';
+test('asset search origins use only each asset’s own valid coordinates', () => {
+  const origins = gisSearchOrigins(
+    [{id:'station-1',name:'Station',code:'ST1',latitude:-15.4,longitude:28.3}],
+    [{id:'tank-1',name:'Unlocated tank',latitude:null,longitude:null,station_latitude:-15.4,station_longitude:28.3},
+      {id:'tank-2',name:'Located tank',tank_id_code:'T2',latitude:'-15.5',longitude:'28.4'}]
+  );
+  assert.equal(origins.length, 2);
+  assert.deepEqual(origins.map(o => o.key), ['station:station-1','tank:tank-2']);
+  assert.equal(origins[1].latitude,-15.5);
+  assert.equal(origins[1].longitude,28.4);
+});

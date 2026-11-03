@@ -21,7 +21,7 @@ export function haversine(lat1, lon1, lat2, lon2) {
 const definitions = {
   'water-points': {
     table: 'gis_water_points w', point: 'w',
-    fields: 'w.id, w.name, w.type, w.latitude, w.longitude, w.operational_status, w.source, w.verification_status, w.community, w.district',
+    fields: 'w.id, w.name, w.type, w.latitude, w.longitude, w.operational_status, w.source, w.verification_status, w.community, w.district, w.updated_at',
     where: "w.verification_status = 'VERIFIED'"
   },
   reports: {

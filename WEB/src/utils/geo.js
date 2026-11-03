@@ -56,3 +56,16 @@ export function geoJsonPointToLeaflet(feature) {
   if (!Array.isArray(c) || c.length < 2 || typeof c[0] !== 'number' || typeof c[1] !== 'number' || !hasPin({latitude:c[1], longitude:c[0]})) return null;
   return [c[1], c[0]];
 }
+
+/** Build selectable origins only from each asset's own recorded location. */
+export function gisSearchOrigins(stations = [], tanks = []) {
+  const make = (kind, entity) => ({
+    key: `${kind}:${entity.id}`, kind, name: entity.name || 'Unnamed',
+    code: kind === 'tank' ? entity.tank_id_code : entity.code,
+    latitude: Number(entity.latitude), longitude: Number(entity.longitude)
+  });
+  return [
+    ...stations.filter(item => item?.id != null && hasPin(item)).map(item => make('station', item)),
+    ...tanks.filter(item => item?.id != null && hasPin(item)).map(item => make('tank', item))
+  ];
+}

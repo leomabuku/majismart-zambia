@@ -55,6 +55,7 @@ test('administrator nearby search filters privacy, verification, provenance and 
   const point = water.data.features.find(f=>f.properties.id==='gis-test-point');
   assert.ok(water.data.features.findIndex(f=>f.properties.id==='gis-test-point') < water.data.features.findIndex(f=>f.properties.id==='gis-test-farther'));
   assert.deepEqual(point.geometry.coordinates,[28.3,-15.4]); assert.equal(point.properties.distance_meters,0);
+  assert.ok(point.properties.updated_at, 'water-point record update time is returned');
   assert.ok(!water.data.features.some(f=>f.properties.id==='gis-test-unverified'));
   const reports = await (await fetch(`${base}/gis/nearby/reports${q}`,{headers:auth(admin)})).json();
   const report = reports.data.features.find(f=>f.properties.id==='gis-test-report');

@@ -1716,3 +1716,11 @@ input, select, textarea {
 .gis-check { display: flex; align-items: flex-start; gap: 8px; font-size: .875rem; }
 .gis-actions { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
 .gis-point-list article { display: flex; gap: 12px; justify-content: space-between; align-items: center; border-top: 1px solid #e2e8f0; padding: 10px 0; overflow-wrap: anywhere; font-size: .875rem; }
+.gis-origin { display: flex; flex-direction: column; gap: 4px; font-size: .875rem; max-width: 380px; }
+.gis-origin select { width: 100%; padding: 8px; border: 1px solid #94a3b8; border-radius: 6px; }
+.gis-results { margin-top: 10px; }
+.gis-results details { border-top: 1px solid #e2e8f0; padding: 10px 0; }
+.gis-results summary { cursor: pointer; font-weight: 600; }
+.gis-results ul { list-style: none; padding: 0; margin: 8px 0; }
+.gis-results li { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-top: 1px solid #f1f5f9; padding: 8px 0; font-size: .875rem; overflow-wrap: anywhere; }
+.gis-results button { border: 1px solid #94a3b8; background: white; border-radius: 6px; padding: 8px; color: #164e63; cursor: pointer; flex-shrink: 0; }

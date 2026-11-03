@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { api } from '../services/api';
 import WaterPointManager from '../components/WaterPointManager';
-import { escapeHtml, directionsUrl, formatAccuracy, formatCoords, hasPin, geoJsonPointToLeaflet } from '../utils/geo';
+import { escapeHtml, directionsUrl, formatAccuracy, formatCoords, hasPin, geoJsonPointToLeaflet, gisSearchOrigins } from '../utils/geo';
 
 export default function IncidentMap({ stations, tanks, reports, isAdmin }) {
   const mapRef = useRef(null);
@@ -20,6 +20,20 @@ export default function IncidentMap({ stations, tanks, reports, isAdmin }) {
   const [loading, setLoading] = useState(false);
   const [showWaterPoints, setShowWaterPoints] = useState(true);
   const [showNearbyReports, setShowNearbyReports] = useState(true);
+
+  const origins = gisSearchOrigins(stations, tanks);
+  function selectOrigin(key) {
+    const origin = origins.find(item => item.key === key);
+    if (!origin) return;
+    setLatitude(String(origin.latitude)); setLongitude(String(origin.longitude));
+    mapInstance.current?.setView([origin.latitude, origin.longitude], Math.max(mapInstance.current.getZoom(), 13));
+  }
+  function showFeature(feature) {
+    const position = geoJsonPointToLeaflet(feature);
+    if (!position || !mapInstance.current) return;
+    mapInstance.current.setView(position, Math.max(mapInstance.current.getZoom(), 15));
+    mapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
 
   async function searchNearby(event) {
     event.preventDefault();
@@ -159,7 +173,7 @@ export default function IncidentMap({ stations, tanks, reports, isAdmin }) {
         if (!pos) continue;
         const p = feature.properties;
         const detail = label === 'Water point'
-          ? `${escapeHtml(p.name)}<br>Type: ${escapeHtml(p.type)}<br>Recorded status: ${escapeHtml(p.operational_status)}<br>Source: ${escapeHtml(p.source)}<br>Location verified; current access and safety not confirmed`
+          ? `${escapeHtml(p.name)}<br>Type: ${escapeHtml(p.type)}<br>Recorded status: ${escapeHtml(p.operational_status)}<br>Record updated: ${escapeHtml(p.updated_at || 'Unknown')}<br>Source: ${escapeHtml(p.source)}<br>Location verified; current access and safety not confirmed`
           : `${escapeHtml(p.category)}<br>Status: ${escapeHtml(p.status)}<br>Provenance: ${escapeHtml(p.provenance)} (not independently verified)`;
         L.circleMarker(pos, { radius: 11, color, weight: 3, fillOpacity: 0.3 })
           .bindPopup(`<strong>${label}</strong><br>${detail}<br>Distance: ${Math.round(p.distance_meters)} m straight-line`).addTo(layer);
@@ -201,7 +215,13 @@ export default function IncidentMap({ stations, tanks, reports, isAdmin }) {
 
       {isAdmin && <section className="gis-search" aria-label="Nearby search">
         <h3>Nearby search</h3>
-        <p>Click the map or enter coordinates. Distances are straight-line estimates, not proof of access, water quality, service coverage or current operation.</p>
+        <p>Choose a stored station or tank, click the map, or enter coordinates. Stored asset locations can be unverified or simulated. Distances are straight-line estimates, not proof of access, water quality, service coverage or current operation.</p>
+        <label className="gis-origin">Search around a stored asset
+          <select value="" onChange={e => selectOrigin(e.target.value)} disabled={!origins.length}>
+            <option value="">{origins.length ? 'Choose a station or tank' : 'No assets with stored coordinates'}</option>
+            {origins.map(origin => <option key={origin.key} value={origin.key}>{origin.kind === 'tank' ? 'Tank' : 'Station'}: {origin.name}{origin.code ? ` (${origin.code})` : ''}</option>)}
+          </select>
+        </label>
         <form onSubmit={searchNearby} className="gis-form">
           <label>Latitude <input required type="number" step="any" min="-90" max="90" value={latitude} onChange={e => setLatitude(e.target.value)} /></label>
           <label>Longitude <input required type="number" step="any" min="-180" max="180" value={longitude} onChange={e => setLongitude(e.target.value)} /></label>
@@ -218,6 +238,21 @@ export default function IncidentMap({ stations, tanks, reports, isAdmin }) {
           {!loading && results && [ ['Water points', results.water], ['Reports', results.incidents] ].map(([label, response]) =>
             <p key={label}>{label}: {response.success ? `${response.data.features.length} found${response.meta.truncated ? ' (limit reached)' : ''}` : `Unavailable — ${response.error || 'request failed'}`}</p>)}
         </div>
+        {!loading && results && <div className="gis-results" aria-label="Nearby search results">
+          {[[results.water, showWaterPoints, 'Verified water points'], [results.incidents, showNearbyReports, 'Nearby reports']].map(([response, visible, label]) => {
+            if (!visible || !response?.success || !response.data.features.length) return null;
+            return <details key={label}><summary>{label} ({response.data.features.length})</summary>
+              <ul>{response.data.features.map(feature => {
+                const p = feature.properties;
+                const point = label === 'Verified water points';
+                return <li key={p.id}><div><strong>{point ? p.name : String(p.category || 'Report').replaceAll('_', ' ')}</strong>
+                  {' · '}{Math.round(p.distance_meters)} m straight-line<br />
+                  {point ? <>Recorded status: {p.operational_status} · Record updated: {p.updated_at || 'Unknown'}<br />Source: {p.source}</> : <>Status: {p.status} · Provenance: {p.provenance} (not independently verified)</>}
+                </div><button type="button" onClick={() => showFeature(feature)} disabled={!geoJsonPointToLeaflet(feature)}>Show on map</button></li>;
+              })}</ul>
+            </details>;
+          })}
+        </div>}
       </section>}
       {isAdmin && <WaterPointManager latitude={latitude} longitude={longitude} onChanged={() => { requestVersion.current++; setLoading(false); setResults(null); }} />}
       {/* Map Element */}
