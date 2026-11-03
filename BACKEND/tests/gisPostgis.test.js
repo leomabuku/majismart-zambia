@@ -54,6 +54,11 @@ test('PostGIS migration backfill, synchronization, index and metre query', { ski
     assert.deepEqual(water.features[0].geometry.coordinates, [28.3,-15.4]);
     assert.ok(water.features[0].properties.distance_meters < 1);
     assert.ok(water.features[1].properties.distance_meters > 1000 && water.features[1].properties.distance_meters < 1200);
+    await client.query("UPDATE public.gis_water_points SET operational_status='OPERATIONAL' WHERE id='gis-far'");
+    const filteredInput = parseNearby({latitude:'-15.4', longitude:'28.3', radiusMeters:'5000', limit:'1', operationalStatus:'OPERATIONAL'}, 'water-points');
+    const filtered = await nearby(db, 'supabase', 'water-points', filteredInput);
+    assert.deepEqual(filtered.features.map(f => f.properties.id), ['gis-far']);
+    assert.equal(filtered.features[0].properties.operational_status, 'OPERATIONAL');
     const reports = await nearby(db, 'supabase', 'reports', input);
     assert.ok(reports.features.some(f => f.properties.id === 'gis-migration-test'));
     assert.ok(!reports.features.some(f => f.properties.id === 'gis-migration-invalid'));

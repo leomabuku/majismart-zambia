@@ -21,6 +21,9 @@ test('coordinate, radius and limit validation is strict', () => {
   assert.deepEqual(parseNearby({latitude:'-15.4', longitude:'28.3'}), {latitude:-15.4,longitude:28.3,radiusMeters:5000,limit:50});
   for (const bad of [{latitude:'91',longitude:'28'}, {latitude:'-15',longitude:'181'}, {latitude:'',longitude:'28'}, {latitude:'0',longitude:'0'}, {latitude:'1;SELECT 1',longitude:'28'}, {latitude:'NaN',longitude:'28'}]) assert.throws(() => parseNearby(bad));
   for (const radiusMeters of ['0','-1','50001','1e3','Infinity']) assert.throws(() => parseNearby({latitude:'1',longitude:'2',radiusMeters}));
+  for (const operationalStatus of ['ALL', '', 'OPERATIONAL; SELECT 1', ['UNKNOWN','OPERATIONAL']]) assert.throws(() => parseNearby({latitude:'1',longitude:'2',operationalStatus}, 'water-points'));
+  assert.throws(() => parseNearby({latitude:'1',longitude:'2',operationalStatus:'UNKNOWN'}, 'reports'));
+  assert.equal(parseNearby({latitude:'1',longitude:'2',operationalStatus:'UNKNOWN'}, 'water-points').operationalStatus,'UNKNOWN');
   for (const limit of ['0','101','2.5']) assert.throws(() => parseNearby({latitude:'1',longitude:'2',limit}));
   assert.ok(Math.abs(haversine(0, 0, 0, 1) - 111195) < 10);
 });
@@ -32,6 +35,11 @@ test('PostGIS SQL is parameterized, indexed and not used for SQLite or unknown m
   await nearby(mock, 'supabase', 'water-points', input);
   assert.match(sql, /ST_DWithin/); assert.match(sql, /gis_point::extensions.geography/);
   assert.deepEqual(params, [28.3,-15.4,28.3,-15.4,5000,50]);
+  await nearby(mock, 'supabase', 'water-points', { ...input, operationalStatus: 'OPERATIONAL' });
+  assert.match(sql, /w.operational_status = \?/);
+  assert.deepEqual(params, [28.3,-15.4,'OPERATIONAL',28.3,-15.4,5000,50]);
+  await nearby(mock, 'sqlite', 'water-points', { ...input, operationalStatus: 'UNKNOWN' });
+  assert.deepEqual(params, ['UNKNOWN']);
   await nearby(mock, 'sqlite', 'reports', input);
   assert.doesNotMatch(sql, /ST_DWithin|geography|gis_point/);
   await assert.rejects(() => nearby(mock,'invalid','reports',input), /Unsupported/);
@@ -45,6 +53,8 @@ test('administrator nearby search filters privacy, verification, provenance and 
   assert.equal((await fetch(`${base}/gis/nearby/reports${q}`,{headers:auth(customer)})).status,403);
   assert.equal((await fetch(`${base}/gis/nearby/reports?latitude=91&longitude=28`,{headers:auth(admin)})).status,400);
   assert.equal((await fetch(`${base}/gis/nearby/reports${q}&limit=101`,{headers:auth(admin)})).status,400);
+  assert.equal((await fetch(`${base}/gis/nearby/reports${q}&operationalStatus=UNKNOWN`,{headers:auth(admin)})).status,400);
+  assert.equal((await fetch(`${base}/gis/nearby/water-points${q}&operationalStatus=INVALID`,{headers:auth(admin)})).status,400);
   await db.run("INSERT INTO gis_water_points (id,name,type,latitude,longitude,source,verification_status,operational_status) VALUES (?,?,?,?,?,?,?,?)",'gis-test-point','Test point','BOREHOLE',-15.4,28.3,'Field survey','VERIFIED','UNKNOWN');
   await db.run("INSERT INTO gis_water_points (id,name,type,latitude,longitude,source,verification_status) VALUES (?,?,?,?,?,?,?)",'gis-test-farther','Farther point','KIOSK',-15.41,28.3,'Field survey','VERIFIED');
   await db.run("INSERT INTO gis_water_points (id,name,type,latitude,longitude,source,verification_status) VALUES (?,?,?,?,?,?,?)",'gis-test-unverified','Unverified','KIOSK',-15.4,28.3,'Unknown','UNVERIFIED');
@@ -57,6 +67,14 @@ test('administrator nearby search filters privacy, verification, provenance and 
   assert.deepEqual(point.geometry.coordinates,[28.3,-15.4]); assert.equal(point.properties.distance_meters,0);
   assert.ok(point.properties.updated_at, 'water-point record update time is returned');
   assert.ok(!water.data.features.some(f=>f.properties.id==='gis-test-unverified'));
+  await db.run('UPDATE gis_water_points SET operational_status = ? WHERE id = ?', 'OPERATIONAL', 'gis-test-farther');
+  const filtered = await (await fetch(`${base}/gis/nearby/water-points${q}&limit=1&operationalStatus=OPERATIONAL`,{headers:auth(admin)})).json();
+  assert.equal(filtered.meta.operationalStatus,'OPERATIONAL');
+  assert.deepEqual(filtered.data.features.map(f=>f.properties.id), ['gis-test-farther']);
+  const noMatches = await (await fetch(`${base}/gis/nearby/water-points${q}&operationalStatus=NOT_OPERATIONAL`,{headers:auth(admin)})).json();
+  assert.ok(noMatches.data.features.every(f=>f.properties.operational_status==='NOT_OPERATIONAL'));
+  assert.ok(!noMatches.data.features.some(f=>f.properties.id==='gis-test-point'));
+
   const reports = await (await fetch(`${base}/gis/nearby/reports${q}`,{headers:auth(admin)})).json();
   const report = reports.data.features.find(f=>f.properties.id==='gis-test-report');
   assert.ok(report); assert.deepEqual(report.geometry.coordinates,[28.3,-15.4]);

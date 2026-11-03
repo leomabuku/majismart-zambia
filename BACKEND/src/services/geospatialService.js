@@ -4,13 +4,17 @@ function number(value) {
   if (typeof value !== 'string' || !value.trim() || !/^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(value.trim())) return NaN;
   return Number(value);
 }
-export function parseNearby(query) {
+export function parseNearby(query, kind) {
   const latitude = number(query.latitude), longitude = number(query.longitude);
   const radiusMeters = query.radiusMeters === undefined ? 5000 : number(query.radiusMeters);
   const limit = query.limit === undefined ? 50 : number(query.limit);
   if (!Number.isFinite(latitude) || Math.abs(latitude) > 90 || !Number.isFinite(longitude) || Math.abs(longitude) > 180 || (latitude === 0 && longitude === 0)) throw new Error('Invalid latitude or longitude');
   if (!Number.isFinite(radiusMeters) || radiusMeters <= 0 || radiusMeters > MAX_RADIUS) throw new Error('radiusMeters must be greater than 0 and at most 50000');
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error('limit must be an integer between 1 and 100');
+  if (query.operationalStatus !== undefined) {
+    if (kind !== 'water-points' || !['OPERATIONAL', 'NOT_OPERATIONAL', 'UNKNOWN'].includes(query.operationalStatus)) throw new Error('Invalid operationalStatus filter');
+    return { latitude, longitude, radiusMeters, limit, operationalStatus: query.operationalStatus };
+  }
   return { latitude, longitude, radiusMeters, limit };
 }
 export function haversine(lat1, lon1, lat2, lon2) {
@@ -33,18 +37,20 @@ const definitions = {
 export async function nearby(db, mode, kind, input) {
   const def = definitions[kind];
   if (!def) throw new Error('Unknown GIS layer');
+  const statusFilter = kind === 'water-points' && input.operationalStatus ? ' AND w.operational_status = ?' : '';
+  const statusParams = statusFilter ? [input.operationalStatus] : [];
   let rows;
   if (mode === 'supabase') {
     // The geography expression exactly matches the GiST indexes in the migration.
     const center = 'extensions.ST_SetSRID(extensions.ST_MakePoint(?, ?), 4326)::extensions.geography';
     rows = await db.all(`SELECT ${def.fields}, extensions.ST_Distance(${def.point}.gis_point::extensions.geography, ${center}) AS distance_meters
-      FROM ${def.table} WHERE ${def.where} AND ${def.point}.gis_point IS NOT NULL
+      FROM ${def.table} WHERE ${def.where}${statusFilter} AND ${def.point}.gis_point IS NOT NULL
       AND extensions.ST_DWithin(${def.point}.gis_point::extensions.geography, ${center}, ?)
-      ORDER BY distance_meters, ${def.point}.id LIMIT ?`, input.longitude, input.latitude, input.longitude, input.latitude, input.radiusMeters, input.limit);
+      ORDER BY distance_meters, ${def.point}.id LIMIT ?`, input.longitude, input.latitude, ...statusParams, input.longitude, input.latitude, input.radiusMeters, input.limit);
   } else if (mode === 'sqlite') {
-    rows = await db.all(`SELECT ${def.fields} FROM ${def.table} WHERE ${def.where}
+    rows = await db.all(`SELECT ${def.fields} FROM ${def.table} WHERE ${def.where}${statusFilter}
       AND ${def.point}.latitude BETWEEN -90 AND 90 AND ${def.point}.longitude BETWEEN -180 AND 180
-      AND (${def.point}.latitude <> 0 OR ${def.point}.longitude <> 0)`);
+      AND (${def.point}.latitude <> 0 OR ${def.point}.longitude <> 0)`, ...statusParams);
     rows = rows.map(row => ({ ...row, distance_meters: haversine(input.latitude, input.longitude, Number(row.latitude), Number(row.longitude)) }))
       .filter(row => row.distance_meters <= input.radiusMeters)
       .sort((a,b) => a.distance_meters - b.distance_meters || String(a.id).localeCompare(String(b.id))).slice(0, input.limit);

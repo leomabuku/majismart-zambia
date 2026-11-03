@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import { api } from '../services/api';
 import WaterPointManager from '../components/WaterPointManager';
+import { nearbyQueryStrings } from '../utils/gisSearch';
 import { escapeHtml, directionsUrl, formatAccuracy, formatCoords, hasPin, geoJsonPointToLeaflet, gisSearchOrigins } from '../utils/geo';
 
 export default function IncidentMap({ stations, tanks, reports, isAdmin }) {
@@ -16,6 +17,7 @@ export default function IncidentMap({ stations, tanks, reports, isAdmin }) {
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
   const [radius, setRadius] = useState('5000');
+  const [operationalStatus, setOperationalStatus] = useState('ALL');
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showWaterPoints, setShowWaterPoints] = useState(true);
@@ -39,9 +41,9 @@ export default function IncidentMap({ stations, tanks, reports, isAdmin }) {
     event.preventDefault();
     const version = ++requestVersion.current;
     setLoading(true); setResults(null);
-    const params = new URLSearchParams({ latitude, longitude, radiusMeters: radius });
+    const queries = nearbyQueryStrings({ latitude, longitude, radius, operationalStatus });
     const [water, incidents] = await Promise.all([
-      api.get(`/gis/nearby/water-points?${params}`), api.get(`/gis/nearby/reports?${params}`)
+      api.get(`/gis/nearby/water-points?${queries.water}`), api.get(`/gis/nearby/reports?${queries.reports}`)
     ]);
     if (version !== requestVersion.current) return;
     setResults({ water, incidents }); setLoading(false);
@@ -226,6 +228,9 @@ export default function IncidentMap({ stations, tanks, reports, isAdmin }) {
           <label>Latitude <input required type="number" step="any" min="-90" max="90" value={latitude} onChange={e => setLatitude(e.target.value)} /></label>
           <label>Longitude <input required type="number" step="any" min="-180" max="180" value={longitude} onChange={e => setLongitude(e.target.value)} /></label>
           <label>Radius (metres) <input required type="number" min="1" max="50000" step="any" value={radius} onChange={e => setRadius(e.target.value)} /></label>
+          <label>Water point recorded status <select value={operationalStatus} onChange={e => setOperationalStatus(e.target.value)}>
+            <option value="ALL">All statuses</option><option value="OPERATIONAL">Recorded operational</option><option value="NOT_OPERATIONAL">Recorded not operational</option><option value="UNKNOWN">Unknown</option>
+          </select></label>
           <button type="submit" disabled={loading}>{loading ? 'Searching…' : 'Find nearby'}</button>
         </form>
         <div className="gis-toggles">
@@ -235,6 +240,7 @@ export default function IncidentMap({ stations, tanks, reports, isAdmin }) {
         <div role="status" aria-live="polite">
           {loading && 'Searching nearby locations…'}
           {!loading && results && (results.water.success || results.incidents.success) && <p>Last search: {formatCoords((results.water.success ? results.water : results.incidents).meta.latitude, (results.water.success ? results.water : results.incidents).meta.longitude)} · {(results.water.success ? results.water : results.incidents).meta.radiusMeters} m radius</p>}
+          {!loading && results?.water.success && <p>Water-point status filter: {results.water.meta.operationalStatus ? results.water.meta.operationalStatus.replaceAll('_', ' ') : 'All statuses'} (recorded status may be out of date).</p>}
           {!loading && results && [ ['Water points', results.water], ['Reports', results.incidents] ].map(([label, response]) =>
             <p key={label}>{label}: {response.success ? `${response.data.features.length} found${response.meta.truncated ? ' (limit reached)' : ''}` : `Unavailable — ${response.error || 'request failed'}`}</p>)}
         </div>

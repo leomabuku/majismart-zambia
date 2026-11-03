@@ -1698,7 +1698,7 @@ input, select, textarea {
 .gis-search p { margin: 8px 0; font-size: .875rem; }
 .gis-form, .gis-toggles { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin-top: 12px; }
 .gis-form label { display: flex; flex-direction: column; gap: 4px; font-size: .875rem; }
-.gis-form input { max-width: 170px; padding: 8px; border: 1px solid #94a3b8; border-radius: 6px; }
+.gis-form input, .gis-form select { max-width: 170px; padding: 8px; border: 1px solid #94a3b8; border-radius: 6px; }
 .gis-form button { padding: 9px 14px; border: 0; border-radius: 6px; background: #0369a1; color: white; cursor: pointer; }
 .gis-form button:disabled { opacity: .6; }
 .gis-toggles label { font-size: .875rem; }

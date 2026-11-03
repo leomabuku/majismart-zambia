@@ -3,7 +3,7 @@ import { nearby, parseNearby } from '../services/geospatialService.js';
 
 export async function getNearby(req, res) {
   let input;
-  try { input = parseNearby(req.query); }
+  try { input = parseNearby(req.query, req.params.layer); }
   catch (error) { return res.status(400).json({ success: false, error: error.message }); }
   try {
     const data = await nearby(db, databaseMode, req.params.layer, input);

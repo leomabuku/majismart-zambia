@@ -25,7 +25,7 @@ Use Node 24 (the repository CI/container version). Install with `npm ci --prefix
 
 ## API
 
-All endpoints use `Authorization: Bearer <admin token>`. For nearby searches, the parameters `latitude` and `longitude` are required decimal degrees, `radiusMeters` defaults to 5000 and must be > 0 and <= 50000, `limit` defaults to 50 and must be 1–100. `(0,0)`, malformed or repeated parameters are rejected. Results are nearest first; `meta.truncated` means the limit was reached and additional results may exist. There is no pagination beyond the limit.
+All endpoints use `Authorization: Bearer <admin token>`. For nearby searches, the parameters `latitude` and `longitude` are required decimal degrees, `radiusMeters` defaults to 5000 and must be > 0 and <= 50000, `limit` defaults to 50 and must be 1–100. `(0,0)`, malformed or repeated parameters are rejected. Water-point searches also accept `operationalStatus=OPERATIONAL`, `NOT_OPERATIONAL`, or `UNKNOWN`; the filter is applied before the result limit. This is the recorded status, not a real-time safety or access guarantee. Reports do not accept this filter. Results are nearest first; `meta.truncated` means the limit was reached and additional results may exist. There is no pagination beyond the limit.
 
 - `GET /api/gis/nearby/water-points?latitude=-15.4&longitude=28.3&radiusMeters=5000`
 - `GET /api/gis/nearby/reports?latitude=-15.4&longitude=28.3&radiusMeters=5000`
